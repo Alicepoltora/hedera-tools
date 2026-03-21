@@ -10,3 +10,4 @@ coverage/
 .vscode/
 *.pyc
 __pycache__/
+.vercel
