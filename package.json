@@ -27,7 +27,7 @@
   },
   "dependencies": {
     "@hashgraph/hedera-wallet-connect": "^2.0.7",
-    "@hashgraph/sdk": "^2.50.0"
+    "@hiero-ledger/sdk": "^2.81.0"
   },
   "devDependencies": {
     "@types/react": "^18.3.3",
