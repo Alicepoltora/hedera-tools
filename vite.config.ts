@@ -1,25 +1,20 @@
 import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import dts from 'vite-plugin-dts';
+import { nodePolyfills } from 'vite-plugin-node-polyfills';
 import { resolve } from 'path';
 
-// Resolves optional/missing deps from hedera-wallet-connect to empty shims.
-// The library ships Reown/AppKit adapters as optional features we don't use.
-// List of packages that hedera-wallet-connect imports optionally
-// but which are not installed / not needed for our demo.
-// In demo mode (browser build) we shim ALL @walletconnect/* because
-// @walletconnect/core imports Node's `crypto` module which is not available
-// in browsers and causes a runtime crash (blank/dark screen).
-// The demo app uses demoMode={true} so wallet-connect is never actually called.
+// Shim only the Reown/AppKit adapters — optional features of hedera-wallet-connect
+// that we never use. @walletconnect/core is NO LONGER shimmed so real wallet
+// connection works; the Node.js `crypto` module is polyfilled via nodePolyfills().
 const OPTIONAL_SHIMS = [
   '@reown/',
-  '@walletconnect/',   // shim ALL walletconnect — core imports Node.js `crypto`
-  'ethers',            // only needed by reown adapter
+  'ethers', // only needed by reown adapter
 ];
 
 const shimOptionalDeps: Plugin = {
   name: 'shim-optional-deps',
-  enforce: 'pre', // run before vite:resolve so we intercept before crypto warning
+  enforce: 'pre',
   resolveId(id, importer) {
     const emptyShim = resolve(__dirname, 'src/shims/empty.ts');
 
@@ -46,6 +41,8 @@ export default defineConfig(({ mode }) => {
     plugins: [
       react(),
       shimOptionalDeps,
+      // Polyfill Node.js built-ins (crypto, buffer, etc.) for browser builds
+      ...(!isLib ? [nodePolyfills({ include: ['crypto', 'buffer', 'stream', 'util'] })] : []),
       ...(isLib
         ? [
             dts({
@@ -105,7 +102,6 @@ export default defineConfig(({ mode }) => {
         outDir: 'dist-demo',
         sourcemap: true,
         rollupOptions: {
-          // Auto-shim any missing named export from optional deps we shimmed
           shimMissingExports: true,
         },
       },
