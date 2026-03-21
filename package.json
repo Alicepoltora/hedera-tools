@@ -1,9 +1,10 @@
 {
   "name": "hedera-ui-kit",
-  "version": "0.1.0",
-  "description": "Open-source React UI component library for Hedera developers — hooks and components for HTS, HCS, and wallet connection",
+  "version": "1.0.0",
+  "description": "Open-source React component library for Hedera developers — hooks and UI components for HTS, HCS, staking, NFTs, and smart contracts",
   "type": "module",
-  "files": ["dist"],
+  "sideEffects": false,
+  "files": ["dist", "README.md", "CHANGELOG.md"],
   "main": "./dist/hedera-ui-kit.umd.cjs",
   "module": "./dist/hedera-ui-kit.js",
   "types": "./dist/index.d.ts",
@@ -18,6 +19,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "build:lib": "tsc -b && vite build --mode lib",
+    "prepare": "npm run build:lib",
     "preview": "vite preview",
     "type-check": "tsc --noEmit"
   },
@@ -51,11 +53,14 @@
     "web3",
     "blockchain"
   ],
-  "author": "Alice",
+  "author": "Alice Poltora",
   "license": "MIT",
-  "homepage": "https://github.com/Alicepoltora/hedera-tools",
+  "homepage": "https://hedera-ui-kit.vercel.app",
   "repository": {
     "type": "git",
     "url": "https://github.com/Alicepoltora/hedera-tools.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Alicepoltora/hedera-tools/issues"
   }
 }
