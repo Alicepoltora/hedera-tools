@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { AccountId, PrivateKey, TokenCreateTransaction, TokenType, TokenSupplyType, Hbar } from '@hashgraph/sdk';
 import { useHedera } from '../hooks/useHedera';
 
+
 export interface TokenMintResult {
   tokenId: string;
   txId?: string;
@@ -51,7 +52,7 @@ function Field({
  * <TokenMintForm onSuccess={({ tokenId }) => console.log(tokenId)} />
  */
 export function TokenMintForm({ onSuccess, onError, className = '' }: TokenMintFormProps) {
-  const { hashconnect, accountId, isConnected, demoMode } = useHedera();
+  const { signer, accountId, isConnected, demoMode } = useHedera();
 
   const [name, setName] = useState('');
   const [symbol, setSymbol] = useState('');
@@ -88,9 +89,8 @@ export function TokenMintForm({ onSuccess, onError, className = '' }: TokenMintF
 
     // ── Real mode ──
     try {
-      if (!hashconnect) throw new Error('HashConnect not initialised');
+      if (!signer) throw new Error('Wallet signer not available');
 
-      const signer = hashconnect.getSigner(AccountId.fromString(accountId));
       const adminKey = PrivateKey.generateECDSA();
       const supplyKey = PrivateKey.generateECDSA();
 
