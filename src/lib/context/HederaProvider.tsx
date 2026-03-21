@@ -5,7 +5,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { LedgerId } from '@hashgraph/sdk';
+import { LedgerId } from '@hiero-ledger/sdk';
 import {
   DAppConnector,
   HederaJsonRpcMethod,
