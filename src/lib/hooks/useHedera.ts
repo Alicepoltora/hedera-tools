@@ -1,5 +1,7 @@
 import { useContext } from 'react';
-import { HederaContext, type HederaContextState } from '../context/HederaProvider';
+import { HederaContext, type HederaContextState, type HederaNetwork } from '../context/HederaProvider';
+
+export type { HederaNetwork };
 
 /**
  * Primary hook — returns wallet state and connect/disconnect actions.
