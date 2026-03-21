@@ -14,7 +14,9 @@ export default defineConfig(({ mode }) => {
             dts({
               include: ['src/lib'],
               outDir: 'dist',
-              rollupTypes: true,
+              rollupTypes: false,
+              tsconfigPath: './tsconfig.app.json',
+              cleanVueFileName: false,
             }),
           ]
         : []),
@@ -37,7 +39,15 @@ export default defineConfig(({ mode }) => {
             format === 'es' ? 'hedera-ui-kit.js' : 'hedera-ui-kit.umd.cjs',
         },
         rollupOptions: {
-          external: ['react', 'react-dom', 'react/jsx-runtime'],
+          external: [
+            'react',
+            'react-dom',
+            'react/jsx-runtime',
+            '@hiero-ledger/sdk',
+            '@hashgraph/hedera-wallet-connect',
+            /^@walletconnect\//,
+            /^@hashgraph\//,
+          ],
           output: {
             globals: {
               react: 'React',
@@ -45,6 +55,7 @@ export default defineConfig(({ mode }) => {
             },
           },
         },
+        emptyOutDir: false,
         sourcemap: true,
         minify: false,
       },
