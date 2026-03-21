@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { AccountId, TopicMessageSubmitTransaction } from '@hashgraph/sdk';
+import { TopicMessageSubmitTransaction } from '@hashgraph/sdk';
 import { useHedera } from './useHedera';
 
 export interface HCSMessage {
@@ -31,11 +31,11 @@ const DEMO_DELAY = 1000;
  *
  * @example
  * const { submitMessage, fetchMessages, loading } = useHCS();
- * await submitMessage('0.0.12345', { event: 'purchase', co2kg: 42 });
+ * await submitMessage('0.0.12345', { event: 'CO2_OFFSET', kg: 42 });
  * const msgs = await fetchMessages('0.0.12345', 10);
  */
 export function useHCS(): UseHCSResult {
-  const { hashconnect, accountId, isConnected, demoMode, network } = useHedera();
+  const { signer, accountId, isConnected, demoMode, network } = useHedera();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastSequenceNumber, setLastSequenceNumber] = useState<string | null>(null);
@@ -69,9 +69,7 @@ export function useHCS(): UseHCSResult {
 
       // ── Real mode ──
       try {
-        if (!hashconnect) throw new Error('HashConnect not initialised');
-
-        const signer = hashconnect.getSigner(AccountId.fromString(accountId));
+        if (!signer) throw new Error('Wallet signer not available');
 
         const tx = await new TopicMessageSubmitTransaction()
           .setTopicId(topicId)
@@ -91,7 +89,7 @@ export function useHCS(): UseHCSResult {
         setLoading(false);
       }
     },
-    [hashconnect, accountId, isConnected, demoMode]
+    [signer, accountId, isConnected, demoMode]
   );
 
   const fetchMessages = useCallback(
