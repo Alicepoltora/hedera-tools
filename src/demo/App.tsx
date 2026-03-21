@@ -1185,9 +1185,9 @@ export default function App() {
   return (
     <HederaProvider
       network="testnet"
-      walletConnectProjectId="YOUR_WALLETCONNECT_PROJECT_ID"
-      demoMode
-      appMetadata={{ name: 'hedera-ui-kit Demo' }}
+      walletConnectProjectId={import.meta.env.VITE_WALLETCONNECT_PROJECT_ID ?? 'demo'}
+      demoMode={!import.meta.env.VITE_WALLETCONNECT_PROJECT_ID}
+      appMetadata={{ name: 'hedera-ui-kit Demo', url: 'https://hedera-ui-kit.vercel.app' }}
     >
       <DemoShell />
     </HederaProvider>
