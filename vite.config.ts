@@ -19,6 +19,7 @@ const OPTIONAL_SHIMS = [
 
 const shimOptionalDeps: Plugin = {
   name: 'shim-optional-deps',
+  enforce: 'pre', // run before vite:resolve so we intercept before crypto warning
   resolveId(id, importer) {
     const emptyShim = resolve(__dirname, 'src/shims/empty.ts');
 
