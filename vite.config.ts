@@ -7,9 +7,13 @@ import { resolve } from 'path';
 // The library ships Reown/AppKit adapters as optional features we don't use.
 // List of packages that hedera-wallet-connect imports optionally
 // but which are not installed / not needed for our demo.
+// In demo mode (browser build) we shim ALL @walletconnect/* because
+// @walletconnect/core imports Node's `crypto` module which is not available
+// in browsers and causes a runtime crash (blank/dark screen).
+// The demo app uses demoMode={true} so wallet-connect is never actually called.
 const OPTIONAL_SHIMS = [
   '@reown/',
-  '@walletconnect/modal',
+  '@walletconnect/',   // shim ALL walletconnect — core imports Node.js `crypto`
   'ethers',            // only needed by reown adapter
 ];
 
