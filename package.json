@@ -1,27 +1,61 @@
 {
-  "name": "hedera-tools",
+  "name": "hedera-ui-kit",
   "version": "0.1.0",
-  "description": "Hedera Hello Future Apex Hackathon 2026 — Sustainability Track",
+  "description": "Open-source React UI component library for Hedera developers — hooks and components for HTS, HCS, and wallet connection",
   "type": "module",
-  "main": "src/index.js",
+  "files": ["dist"],
+  "main": "./dist/hedera-ui-kit.umd.cjs",
+  "module": "./dist/hedera-ui-kit.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/hedera-ui-kit.js",
+      "require": "./dist/hedera-ui-kit.umd.cjs",
+      "types": "./dist/index.d.ts"
+    }
+  },
   "scripts": {
-    "start": "node src/index.js",
-    "dev": "node --watch src/index.js",
-    "test": "node --test tests/",
-    "create-account": "node scripts/createAccount.js",
-    "create-token": "node scripts/createToken.js",
-    "create-topic": "node scripts/createTopic.js"
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "build:lib": "tsc -b && vite build --mode lib",
+    "preview": "vite preview",
+    "type-check": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "react": ">=18.0.0",
+    "react-dom": ">=18.0.0"
   },
   "dependencies": {
-    "@hashgraph/sdk": "^2.50.0",
-    "dotenv": "^16.4.5",
-    "express": "^4.19.2",
-    "node-fetch": "^3.3.2"
+    "@hashgraph/hashconnect": "^3.0.13",
+    "@hashgraph/sdk": "^2.50.0"
   },
   "devDependencies": {
-    "nodemon": "^3.1.0"
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "autoprefixer": "^10.4.19",
+    "postcss": "^8.4.38",
+    "tailwindcss": "^3.4.4",
+    "typescript": "^5.5.3",
+    "vite": "^5.3.1",
+    "vite-plugin-dts": "^3.9.1"
   },
-  "keywords": ["hedera", "sustainability", "carbon", "blockchain", "hts", "hcs"],
+  "keywords": [
+    "hedera",
+    "hts",
+    "hcs",
+    "hashgraph",
+    "react",
+    "ui-kit",
+    "hashpack",
+    "web3",
+    "blockchain"
+  ],
   "author": "Alice",
-  "license": "MIT"
+  "license": "MIT",
+  "homepage": "https://github.com/Alicepoltora/hedera-tools",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Alicepoltora/hedera-tools.git"
+  }
 }
