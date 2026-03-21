@@ -135,22 +135,75 @@ function Btn({
 // SECTION: Overview
 // ─────────────────────────────────────────────────────────────────────────────
 
+function NpmBadge() {
+  return (
+    <a
+      href="https://www.npmjs.com/package/hedera-ui-kit"
+      target="_blank"
+      rel="noreferrer"
+      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-950/40 border border-red-800/40 text-red-400 hover:bg-red-950/60 transition-colors text-xs font-mono font-semibold"
+    >
+      <svg width="14" height="14" viewBox="0 0 780 250" fill="currentColor">
+        <path d="M240 250V0H0v250h240zm-180-30V30h120v190H60zm300 30V30h-60V0h240v250h-60V30h-60v220h-60zm300-250v250h-60V0h60zm60 0h120v250h-60V30h-60V0z"/>
+      </svg>
+      hedera-ui-kit@1.0.0
+    </a>
+  );
+}
+
 function OverviewSection() {
   return (
     <div className="space-y-8">
+      {/* Live on npm banner */}
+      <div className="rounded-2xl bg-emerald-950/30 border border-emerald-700/30 px-5 py-4 flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+          <div>
+            <p className="text-emerald-300 font-semibold text-sm">Published on npm</p>
+            <p className="text-emerald-600 text-xs mt-0.5">Available to install right now</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap justify-end">
+          <NpmBadge />
+          <a
+            href="https://github.com/Alicepoltora/hedera-tools"
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:text-slate-200 transition-colors text-xs font-mono"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/>
+            </svg>
+            GitHub
+          </a>
+          <a
+            href="https://hedera-ui-kit.vercel.app"
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-violet-900/30 border border-violet-700/40 text-violet-400 hover:text-violet-300 transition-colors text-xs font-mono"
+          >
+            ↗ Live Demo
+          </a>
+        </div>
+      </div>
+
       <div className="space-y-3">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-violet-600 flex items-center justify-center font-bold text-white text-lg">H</div>
           <div>
             <h1 className="text-2xl font-bold text-white">hedera-ui-kit</h1>
-            <p className="text-xs text-slate-500 font-mono">v1.0.0 · MIT License</p>
+            <p className="text-xs text-slate-500 font-mono">v1.0.0 · MIT License · 87 kB</p>
           </div>
         </div>
         <p className="text-slate-400 text-base max-w-2xl leading-relaxed">
           Open-source React component library for Hedera developers — hooks for HTS, HCS, staking,
           smart contracts, and plug-and-play UI components. Built for the <span className="text-violet-400">Hedera Hello Future Apex 2026</span> Hackathon.
         </p>
-        <Code>npm install hedera-ui-kit</Code>
+
+        {/* Install command */}
+        <div className="flex items-center gap-3">
+          <Code>npm install hedera-ui-kit</Code>
+        </div>
       </div>
 
       {/* Stats */}
