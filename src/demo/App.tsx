@@ -8,6 +8,13 @@ import {
   HBARAmount,
   TokenCard,
   TransactionStatus,
+  AccountCard,
+  HBARPriceWidget,
+  NFTGallery,
+  TransactionHistory,
+  StakingPanel,
+  TopicMessageFeed,
+  ContractCallButton,
   useHedera,
   useTransfer,
   useTokenBalance,
@@ -17,6 +24,13 @@ import {
   useContractWrite,
   useContractRead,
   useNFT,
+  useTokenCreate,
+  useTokenBurn,
+  useTokenInfo,
+  useAccountTransactions,
+  useExchangeRate,
+  useScheduledTransaction,
+  useFileService,
   type TokenMintResult,
 } from '../lib';
 
@@ -209,8 +223,8 @@ function OverviewSection() {
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { icon: '🪝', value: '11', label: 'Hooks', sub: 'wallet · HTS · HCS · contracts' },
-          { icon: '🧩', value: '7', label: 'Components', sub: 'plug-and-play UI' },
+          { icon: '🪝', value: '19', label: 'Hooks', sub: 'wallet · HTS · HCS · staking · contracts' },
+          { icon: '🧩', value: '14', label: 'Components', sub: 'plug-and-play UI' },
           { icon: '🎭', value: 'Demo', label: 'Mode', sub: 'no real wallet needed' },
           { icon: '💙', value: '100%', label: 'TypeScript', sub: 'full type safety' },
         ].map((s) => (
@@ -463,6 +477,15 @@ function WalletSection() {
     <div className="space-y-6">
       <h2 className="text-xl font-semibold text-white">Wallet & Accounts</h2>
 
+      {/* AccountCard component */}
+      <DemoCard
+        title="AccountCard"
+        badge="component"
+        snippet={`import { AccountCard } from 'hedera-ui-kit';\n\n<AccountCard showUSD showCopy />`}
+      >
+        <AccountCard showUSD showCopy />
+      </DemoCard>
+
       {/* Wallet state */}
       <DemoCard
         title="useHedera()"
@@ -572,9 +595,81 @@ function HTSSection() {
   const { balance, loading: balLoading } = useTokenBalance(lookupId);
   const { associate, dissociate, loading: assocLoading, txId: assocTxId } = useTokenAssociate();
 
+  // New hooks
+  const [createName, setCreateName] = useState('My Token');
+  const [createSymbol, setCreateSymbol] = useState('MTK');
+  const { createToken, tokenId: newTokenId, loading: createLoading } = useTokenCreate();
+  const [burnTokenId, setBurnTokenId] = useState('0.0.1234567');
+  const [burnAmount, setBurnAmount] = useState('100');
+  const { burnFungible, txId: burnTxId, loading: burnLoading } = useTokenBurn();
+  const { info: tokenInfoData, loading: tiLoading } = useTokenInfo(lookupId);
+
   return (
     <div className="space-y-6">
       <h2 className="text-xl font-semibold text-white">HTS Tokens</h2>
+
+      {/* Token Create */}
+      <DemoCard
+        title="useTokenCreate() — Create New Token"
+        badge="hook"
+        snippet={`import { useTokenCreate } from 'hedera-ui-kit';\n\nconst { createToken, tokenId } = useTokenCreate();\nawait createToken({ name: 'My Token', symbol: 'MTK', type: 'FUNGIBLE', initialSupply: 1000 });`}
+      >
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <Input label="Token Name" value={createName} onChange={(e) => setCreateName(e.target.value)} />
+            <Input label="Symbol" value={createSymbol} onChange={(e) => setCreateSymbol(e.target.value)} />
+          </div>
+          <div className="flex gap-2">
+            <Btn onClick={() => void createToken({ name: createName, symbol: createSymbol, type: 'FUNGIBLE', initialSupply: 1000, decimals: 2 })} disabled={createLoading}>
+              {createLoading ? 'Creating…' : 'Create FT'}
+            </Btn>
+            <Btn variant="secondary" onClick={() => void createToken({ name: createName, symbol: createSymbol, type: 'NFT' })} disabled={createLoading}>
+              {createLoading ? 'Creating…' : 'Create NFT'}
+            </Btn>
+          </div>
+          {newTokenId && <StatBox label="New Token ID" value={newTokenId} />}
+        </div>
+      </DemoCard>
+
+      {/* Token Burn */}
+      <DemoCard
+        title="useTokenBurn() — Burn Tokens"
+        badge="hook"
+        snippet={`import { useTokenBurn } from 'hedera-ui-kit';\n\nconst { burnFungible, burnNFT, txId } = useTokenBurn();\nawait burnFungible('0.0.1234567', 100);\nawait burnNFT('0.0.1234567', [1, 2, 3]);`}
+      >
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <Input label="Token ID" value={burnTokenId} onChange={(e) => setBurnTokenId(e.target.value)} />
+            <Input label="Amount" value={burnAmount} onChange={(e) => setBurnAmount(e.target.value)} type="number" />
+          </div>
+          <Btn variant="danger" onClick={() => void burnFungible(burnTokenId, Number(burnAmount))} disabled={burnLoading}>
+            {burnLoading ? 'Burning…' : 'Burn Tokens'}
+          </Btn>
+          {burnTxId && <StatBox label="Burn Tx" value={burnTxId} />}
+        </div>
+      </DemoCard>
+
+      {/* Token Info */}
+      <DemoCard
+        title="useTokenInfo() — Full Token Metadata"
+        badge="hook"
+        snippet={`import { useTokenInfo } from 'hedera-ui-kit';\n\nconst { info } = useTokenInfo('0.0.1234567');\nconsole.log(info?.name, info?.totalSupply, info?.pauseStatus);`}
+      >
+        {tiLoading ? (
+          <p className="text-slate-500 text-sm animate-pulse">Loading…</p>
+        ) : tokenInfoData ? (
+          <div className="grid grid-cols-2 gap-3">
+            <StatBox label="Name" value={tokenInfoData.name} />
+            <StatBox label="Symbol" value={tokenInfoData.symbol} />
+            <StatBox label="Total Supply" value={tokenInfoData.totalSupply.toLocaleString()} />
+            <StatBox label="Type" value={tokenInfoData.type === 'FUNGIBLE_COMMON' ? 'Fungible' : 'NFT'} />
+            <StatBox label="Supply Type" value={tokenInfoData.supplyType} />
+            <StatBox label="Pause Status" value={tokenInfoData.pauseStatus} />
+          </div>
+        ) : (
+          <p className="text-slate-500 text-sm">Enter a token ID above to see full metadata.</p>
+        )}
+      </DemoCard>
 
       {/* Mint form */}
       <DemoCard
@@ -715,7 +810,15 @@ function NFTSection() {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-xl font-semibold text-white">NFTs — useNFT()</h2>
+      <h2 className="text-xl font-semibold text-white">NFTs</h2>
+
+      <DemoCard
+        title="NFTGallery"
+        badge="component"
+        snippet={`import { NFTGallery } from 'hedera-ui-kit';\n\n<NFTGallery columns={3} onSelect={(nft) => console.log(nft)} />`}
+      >
+        <NFTGallery columns={3} />
+      </DemoCard>
 
       <DemoCard
         title="useNFT() — NFT Metadata & Collections"
@@ -851,6 +954,14 @@ function HCSSection() {
       </DemoCard>
 
       <DemoCard
+        title="TopicMessageFeed — Live HCS Feed"
+        badge="component"
+        snippet={`import { TopicMessageFeed } from 'hedera-ui-kit';\n\n<TopicMessageFeed topicId="0.0.9999999" pollInterval={3000} />`}
+      >
+        <TopicMessageFeed topicId="0.0.9999999" pollInterval={3000} />
+      </DemoCard>
+
+      <DemoCard
         title="useHCS() — Programmatic HCS Access"
         badge="hook"
         snippet={`import { useHCS } from 'hedera-ui-kit';
@@ -890,6 +1001,14 @@ function StakingSection() {
   return (
     <div className="space-y-6">
       <h2 className="text-xl font-semibold text-white">Staking</h2>
+
+      <DemoCard
+        title="StakingPanel"
+        badge="component"
+        snippet={`import { StakingPanel } from 'hedera-ui-kit';\n\n<StakingPanel />`}
+      >
+        <StakingPanel />
+      </DemoCard>
 
       <DemoCard
         title="useStaking() — Staking Info & Network Nodes"
@@ -988,6 +1107,19 @@ function ContractsSection() {
   return (
     <div className="space-y-6">
       <h2 className="text-xl font-semibold text-white">Smart Contracts</h2>
+
+      {/* ContractCallButton */}
+      <DemoCard
+        title="ContractCallButton"
+        badge="component"
+        snippet={`import { ContractCallButton } from 'hedera-ui-kit';\n\n<ContractCallButton\n  contractId="0.0.1234567"\n  functionName="mint"\n  label="Mint Token"\n  onSuccess={(txId) => console.log(txId)}\n/>`}
+      >
+        <div className="flex flex-wrap gap-3">
+          <ContractCallButton contractId="0.0.1234567" functionName="mint" label="Mint Token" variant="primary" />
+          <ContractCallButton contractId="0.0.1234567" functionName="burn" label="Burn Token" variant="danger" />
+          <ContractCallButton contractId="0.0.1234567" functionName="pause" label="Pause" variant="secondary" />
+        </div>
+      </DemoCard>
 
       {/* Write */}
       <DemoCard
@@ -1089,18 +1221,182 @@ const { data, loading, error, refetch } = useContractRead(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// SECTION: Transactions
+// ─────────────────────────────────────────────────────────────────────────────
+
+function TransactionsSection() {
+  const { accountId } = useHedera();
+  const { transactions } = useAccountTransactions(undefined, { limit: 10 });
+
+  return (
+    <div className="space-y-6">
+      <DemoCard
+        title="AccountCard"
+        badge="component"
+        snippet={`import { AccountCard } from 'hedera-ui-kit';\n\n<AccountCard showUSD showQR />`}
+      >
+        <AccountCard showUSD showQR />
+      </DemoCard>
+
+      <DemoCard
+        title="TransactionHistory"
+        badge="component"
+        snippet={`import { TransactionHistory } from 'hedera-ui-kit';\n\n<TransactionHistory showFees />`}
+      >
+        <TransactionHistory showFees />
+      </DemoCard>
+
+      <DemoCard
+        title="useAccountTransactions"
+        badge="hook"
+        snippet={`const { transactions, hasMore, fetchMore } = useAccountTransactions();\nconsole.log(transactions[0]?.type); // 'CRYPTOTRANSFER'`}
+      >
+        <div className="space-y-2">
+          <p className="text-xs text-slate-500">Last {transactions.length} transactions for {accountId ?? 'not connected'}</p>
+          {transactions.slice(0, 3).map((tx) => (
+            <div key={tx.transactionId} className="flex items-center justify-between bg-slate-800/50 rounded-lg p-2.5">
+              <span className="text-xs text-violet-300 font-mono">{tx.type}</span>
+              <span className={`text-xs font-mono ${tx.hbarDelta >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                {tx.hbarDelta >= 0 ? '+' : ''}{tx.hbarDelta.toFixed(4)} ℏ
+              </span>
+            </div>
+          ))}
+        </div>
+      </DemoCard>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SECTION: Utilities
+// ─────────────────────────────────────────────────────────────────────────────
+
+function UtilitiesSection() {
+  const { rate, toUSD } = useExchangeRate();
+  const { scheduleTransfer, scheduleId, scheduleInfo, loading: schedLoading } = useScheduledTransaction();
+  const { createFile, readFile, fileId, fileInfo, loading: fileLoading } = useFileService();
+
+  const [schedTo, setSchedTo] = useState('0.0.9999999');
+  const [schedAmount, setSchedAmount] = useState('10');
+  const [schedMemo, setSchedMemo] = useState('Team payment Q1');
+
+  const [fileContent, setFileContent] = useState('{"name":"on-chain file","version":"1.0"}');
+  const [readFileId, setReadFileId] = useState('');
+
+  return (
+    <div className="space-y-6">
+      <DemoCard
+        title="HBARPriceWidget"
+        badge="component"
+        snippet={`import { HBARPriceWidget } from 'hedera-ui-kit';\n\n<HBARPriceWidget showNextRate />\n<HBARPriceWidget compact />`}
+      >
+        <div className="space-y-4">
+          <HBARPriceWidget showNextRate />
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-slate-400">Compact mode:</span>
+            <HBARPriceWidget compact />
+          </div>
+        </div>
+      </DemoCard>
+
+      <DemoCard
+        title="useExchangeRate"
+        badge="hook"
+        snippet={`const { rate, toUSD, toHBAR } = useExchangeRate();\nconst usdValue = toUSD(1000); // 1000 HBAR → USD`}
+      >
+        {rate ? (
+          <div className="space-y-3">
+            <div className="grid grid-cols-3 gap-3">
+              <StatBox label="USD per HBAR" value={`$${rate.usdPerHbar.toFixed(6)}`} />
+              <StatBox label="100 HBAR" value={`$${toUSD(100).toFixed(4)}`} />
+              <StatBox label="$1 USD" value={`${(1 / rate.usdPerHbar).toFixed(2)} ℏ`} />
+            </div>
+          </div>
+        ) : (
+          <p className="text-slate-500 text-sm animate-pulse">Loading rate…</p>
+        )}
+      </DemoCard>
+
+      <DemoCard
+        title="useScheduledTransaction"
+        badge="hook"
+        snippet={`const { scheduleTransfer, scheduleId } = useScheduledTransaction();\nawait scheduleTransfer('0.0.9999', 100, 'Team payment');`}
+      >
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <Input label="To Account" value={schedTo} onChange={(e) => setSchedTo(e.target.value)} placeholder="0.0.9999999" />
+            <Input label="Amount (HBAR)" value={schedAmount} onChange={(e) => setSchedAmount(e.target.value)} type="number" />
+          </div>
+          <Input label="Memo" value={schedMemo} onChange={(e) => setSchedMemo(e.target.value)} />
+          <Btn onClick={() => void scheduleTransfer(schedTo, Number(schedAmount), schedMemo)} disabled={schedLoading}>
+            {schedLoading ? 'Creating…' : 'Create Scheduled Tx'}
+          </Btn>
+          {scheduleId && (
+            <div className="bg-emerald-950/30 border border-emerald-800/30 rounded-xl p-3">
+              <p className="text-xs text-emerald-400 mb-1">Schedule ID</p>
+              <p className="font-mono text-sm text-white">{scheduleId}</p>
+              {scheduleInfo && (
+                <p className="text-xs text-slate-500 mt-1">
+                  Expires: {new Date(scheduleInfo.expirationTime).toLocaleTimeString()}
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      </DemoCard>
+
+      <DemoCard
+        title="useFileService"
+        badge="hook"
+        snippet={`const { createFile, readFile, fileId } = useFileService();\nconst id = await createFile('{"key":"value"}', 'My metadata');\nconst text = await readFile(id);`}
+      >
+        <div className="space-y-3">
+          <div>
+            <label className="text-xs text-slate-500 uppercase tracking-wide block mb-1.5">File Contents</label>
+            <textarea
+              value={fileContent}
+              onChange={(e) => setFileContent(e.target.value)}
+              rows={3}
+              className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-sm font-mono text-slate-100 placeholder-slate-600 focus:outline-none focus:border-violet-500 transition-colors resize-none"
+            />
+          </div>
+          <Btn onClick={() => void createFile(fileContent, 'Demo file')} disabled={fileLoading}>
+            {fileLoading ? 'Creating…' : 'Create File on HFS'}
+          </Btn>
+          {fileId && (
+            <div className="bg-emerald-950/30 border border-emerald-800/30 rounded-xl p-3 space-y-2">
+              <p className="text-xs text-emerald-400">File ID: <span className="font-mono text-white">{fileId}</span></p>
+              {fileInfo && <p className="text-xs text-slate-500">{fileInfo.size} bytes stored</p>}
+            </div>
+          )}
+          <div className="pt-2 border-t border-slate-800">
+            <p className="text-xs text-slate-500 mb-2">Read existing file</p>
+            <div className="flex gap-2">
+              <Input value={readFileId} onChange={(e) => setReadFileId(e.target.value)} placeholder="0.0.1234567" className="flex-1" />
+              <Btn onClick={() => void readFile(readFileId)} disabled={fileLoading || !readFileId} variant="secondary">Read</Btn>
+            </div>
+          </div>
+        </div>
+      </DemoCard>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Sidebar navigation
 // ─────────────────────────────────────────────────────────────────────────────
 
 const SECTIONS = [
-  { id: 'overview',    label: 'Overview',       icon: '🏠' },
-  { id: 'components',  label: 'Components',     icon: '🧩' },
-  { id: 'wallet',      label: 'Wallet',         icon: '👛' },
-  { id: 'hts',         label: 'HTS Tokens',     icon: '🪙' },
-  { id: 'nft',         label: 'NFTs',           icon: '🖼️' },
-  { id: 'hcs',         label: 'HCS Messaging',  icon: '💬' },
-  { id: 'staking',     label: 'Staking',        icon: '📈' },
-  { id: 'contracts',   label: 'Contracts',      icon: '📄' },
+  { id: 'overview',      label: 'Overview',       icon: '🏠' },
+  { id: 'components',    label: 'Components',     icon: '🧩' },
+  { id: 'wallet',        label: 'Wallet',         icon: '👛' },
+  { id: 'hts',           label: 'HTS Tokens',     icon: '🪙' },
+  { id: 'nft',           label: 'NFTs',           icon: '🖼️' },
+  { id: 'hcs',           label: 'HCS Messaging',  icon: '💬' },
+  { id: 'staking',       label: 'Staking',        icon: '📈' },
+  { id: 'contracts',     label: 'Contracts',      icon: '📄' },
+  { id: 'transactions',  label: 'Transactions',   icon: '📋' },
+  { id: 'utilities',     label: 'Utilities',      icon: '🔧' },
 ] as const;
 
 type SectionId = (typeof SECTIONS)[number]['id'];
@@ -1163,14 +1459,16 @@ function DemoShell() {
       {/* Main */}
       <main className="flex-1 overflow-y-auto">
         <div className="max-w-3xl mx-auto px-8 py-10">
-          {active === 'overview'   && <OverviewSection />}
-          {active === 'components' && <ComponentsSection />}
-          {active === 'wallet'     && <WalletSection />}
-          {active === 'hts'        && <HTSSection />}
-          {active === 'nft'        && <NFTSection />}
-          {active === 'hcs'        && <HCSSection />}
-          {active === 'staking'    && <StakingSection />}
-          {active === 'contracts'  && <ContractsSection />}
+          {active === 'overview'      && <OverviewSection />}
+          {active === 'components'    && <ComponentsSection />}
+          {active === 'wallet'        && <WalletSection />}
+          {active === 'hts'           && <HTSSection />}
+          {active === 'nft'           && <NFTSection />}
+          {active === 'hcs'           && <HCSSection />}
+          {active === 'staking'       && <StakingSection />}
+          {active === 'contracts'     && <ContractsSection />}
+          {active === 'transactions'  && <TransactionsSection />}
+          {active === 'utilities'     && <UtilitiesSection />}
         </div>
       </main>
     </div>
