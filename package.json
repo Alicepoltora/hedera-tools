@@ -4,7 +4,11 @@
   "description": "Open-source React component library for Hedera developers — hooks and UI components for HTS, HCS, staking, NFTs, and smart contracts",
   "type": "module",
   "sideEffects": false,
-  "files": ["dist", "README.md", "CHANGELOG.md"],
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md"
+  ],
   "main": "./dist/hedera-ui-kit.umd.cjs",
   "module": "./dist/hedera-ui-kit.js",
   "types": "./dist/index.d.ts",
@@ -29,7 +33,23 @@
   },
   "dependencies": {
     "@hashgraph/hedera-wallet-connect": "^2.0.7",
-    "@hiero-ledger/sdk": "2.79.0"
+    "@hiero-ledger/sdk": "2.79.0",
+    "@reown/walletkit": "^1.5.4",
+    "@walletconnect/core": "^2.23.8",
+    "@walletconnect/jsonrpc-http-connection": "^1.0.8",
+    "@walletconnect/jsonrpc-types": "^1.0.4",
+    "@walletconnect/jsonrpc-utils": "^1.0.8",
+    "@walletconnect/jsonrpc-ws-connection": "^1.0.16",
+    "@walletconnect/logger": "^3.0.2",
+    "@walletconnect/modal": "^2.7.0",
+    "@walletconnect/relay-api": "^1.0.11",
+    "@walletconnect/relay-auth": "^1.1.0",
+    "@walletconnect/sign-client": "^2.23.8",
+    "@walletconnect/time": "^1.0.2",
+    "@walletconnect/types": "^2.23.8",
+    "@walletconnect/utils": "^2.23.8",
+    "@walletconnect/window-getters": "^1.0.1",
+    "ethers": "^6.16.0"
   },
   "devDependencies": {
     "@types/react": "^18.3.3",
@@ -37,6 +57,8 @@
     "@vitejs/plugin-react": "^4.3.1",
     "autoprefixer": "^10.4.19",
     "postcss": "^8.4.38",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
     "tailwindcss": "^3.4.4",
     "typescript": "^5.5.3",
     "vite": "^5.3.1",
