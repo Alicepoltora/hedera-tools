@@ -272,7 +272,7 @@ function ComponentsSection() {
           </div>
           <div className="flex items-center justify-between">
             <span className="text-xs text-slate-500">custom label</span>
-            <ConnectButton connectLabel="Sign in with HashPack" />
+            <ConnectButton label="Sign in with HashPack" />
           </div>
         </div>
       </DemoCard>
@@ -575,7 +575,7 @@ const { balance, loading } = useTokenBalance('0.0.1234567');
               <div className="grid grid-cols-2 gap-2">
                 <StatBox label="Symbol" value={balance.symbol} />
                 <StatBox label="Decimals" value={String(balance.decimals)} />
-                <StatBox label="Raw Amount" value={String(balance.amount)} />
+                <StatBox label="Raw Amount" value={String(balance.balance)} />
                 <StatBox label="Formatted" value={`${balance.formatted.toLocaleString()} ${balance.symbol}`} sub={balLoading ? 'updating…' : ''} />
               </div>
             ) : (
@@ -725,7 +725,7 @@ await fetchAccountNFTs('0.0.12345');`}
               <div className="grid grid-cols-2 gap-2">
                 <StatBox label="Token ID" value={nft.tokenId} />
                 <StatBox label="Serial #" value={String(nft.serialNumber)} />
-                <StatBox label="Owner" value={nft.owner ?? '—'} />
+                <StatBox label="Owner" value={nft.accountId ?? '—'} />
                 <StatBox label="Metadata" value={nft.metadata ? nft.metadata.slice(0, 24) + '…' : '—'} />
               </div>
             </div>
@@ -736,14 +736,14 @@ await fetchAccountNFTs('0.0.12345');`}
               <p className="text-xs text-slate-500 uppercase tracking-wide font-semibold mb-2">Collection</p>
               <div className="grid grid-cols-2 gap-2">
                 <StatBox label="Token ID" value={collection.tokenId} />
-                <StatBox label="Total Minted" value={String(collection.totalMinted)} />
+                <StatBox label="Total Minted" value={String(collection.totalSupply)} />
               </div>
               {collection.nfts.length > 0 && (
                 <div className="mt-2 space-y-1">
                   {collection.nfts.slice(0, 4).map((n) => (
                     <div key={n.serialNumber} className="flex justify-between text-xs font-mono text-slate-400 py-1 border-b border-slate-700/50">
                       <span>#{n.serialNumber}</span>
-                      <span className="text-slate-500 truncate ml-4">{n.owner ?? '—'}</span>
+                      <span className="text-slate-500 truncate ml-4">{n.accountId ?? '—'}</span>
                     </div>
                   ))}
                   {collection.nfts.length > 4 && (
@@ -930,7 +930,7 @@ function ContractsSection() {
 
   // Read
   const [readAddress, setReadAddress] = useState('0x0000000000000000000000000000000000abcdef');
-  const { data: readData, loading: rLoading, error: rError, refetch } = useContractRead(readAddress, null, { enabled: false });
+  const { data: readData, loading: rLoading, error: rError, call: readCall } = useContractRead(readAddress, '0x', { immediate: false });
 
   return (
     <div className="space-y-6">
@@ -1020,13 +1020,13 @@ const { data, loading, error, refetch } = useContractRead(
             <p className="text-xs font-mono text-emerald-400">https://testnet.hashio.io/api</p>
           </div>
           {rError && <p className="text-red-400 text-xs">⚠️ {rError}</p>}
-          {readData && (
+          {readData != null && (
             <div className="rounded-lg bg-slate-800/40 p-3">
               <p className="text-xs text-slate-500 mb-1">Result</p>
               <p className="text-xs font-mono text-slate-300 break-all">{String(readData)}</p>
             </div>
           )}
-          <Btn variant="secondary" disabled={rLoading} onClick={() => refetch()} className="w-full">
+          <Btn variant="secondary" disabled={rLoading} onClick={() => void readCall()} className="w-full">
             {rLoading ? 'Calling…' : 'eth_call →'}
           </Btn>
         </div>
