@@ -18,7 +18,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "build:lib": "tsc -b && vite build --mode lib",
+    "build:lib": "vite build --mode lib",
     "prepare": "npm run build:lib",
     "preview": "vite preview",
     "type-check": "tsc --noEmit"
