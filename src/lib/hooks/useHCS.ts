@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { TopicMessageSubmitTransaction } from '@hashgraph/sdk';
+import { TopicMessageSubmitTransaction } from '@hiero-ledger/sdk';
 import { useHedera } from './useHedera';
 
 export interface HCSMessage {
