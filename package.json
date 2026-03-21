@@ -26,7 +26,7 @@
     "react-dom": ">=18.0.0"
   },
   "dependencies": {
-    "@hashgraph/hashconnect": "^3.0.13",
+    "@hashgraph/hedera-wallet-connect": "^2.0.7",
     "@hashgraph/sdk": "^2.50.0"
   },
   "devDependencies": {
