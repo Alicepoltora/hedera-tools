@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { AccountId, PrivateKey, TokenCreateTransaction, TokenType, TokenSupplyType, Hbar } from '@hashgraph/sdk';
+import { AccountId, PrivateKey, TokenCreateTransaction, TokenType, TokenSupplyType, Hbar } from '@hiero-ledger/sdk';
 import { useHedera } from '../hooks/useHedera';
 
 
