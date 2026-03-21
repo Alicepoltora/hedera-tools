@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { AccountId, Hbar, TransferTransaction } from '@hashgraph/sdk';
+import { Hbar, TransferTransaction } from '@hashgraph/sdk';
 import { useHedera } from './useHedera';
 
 export interface TransferResult {
@@ -20,7 +20,7 @@ const DEMO_DELAY = 1200;
  * await transfer('0.0.9999', 5); // send 5 HBAR
  */
 export function useTransfer(): TransferResult {
-  const { hashconnect, accountId, isConnected, demoMode } = useHedera();
+  const { signer, accountId, isConnected, demoMode } = useHedera();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [txId, setTxId] = useState<string | null>(null);
@@ -51,9 +51,7 @@ export function useTransfer(): TransferResult {
 
       // ── Real mode ──
       try {
-        if (!hashconnect) throw new Error('HashConnect not initialised');
-
-        const signer = hashconnect.getSigner(AccountId.fromString(accountId));
+        if (!signer) throw new Error('Wallet signer not available');
 
         const tx = await new TransferTransaction()
           .addHbarTransfer(accountId, Hbar.from(-amountHbar))
@@ -72,7 +70,7 @@ export function useTransfer(): TransferResult {
         setLoading(false);
       }
     },
-    [hashconnect, accountId, isConnected, demoMode]
+    [signer, accountId, isConnected, demoMode]
   );
 
   return { transfer, loading, error, txId, reset };
