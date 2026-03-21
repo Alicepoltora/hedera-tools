@@ -5,6 +5,8 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { Toaster } from 'sonner';
 import { LedgerId } from '@hiero-ledger/sdk';
 import {
   DAppConnector,
@@ -66,6 +68,21 @@ export const HederaContext = createContext<HederaContextState>({
   connect: async () => {},
   disconnect: async () => {},
   setNetwork: () => {},
+});
+
+// ─────────────────────────────────────────────
+// QueryClient (singleton per provider tree)
+// ─────────────────────────────────────────────
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 30_000,      // 30s
+      gcTime: 5 * 60_000,     // 5min
+      refetchOnWindowFocus: false,
+      retry: 1,
+    },
+  },
 });
 
 // ─────────────────────────────────────────────
@@ -217,22 +234,35 @@ export function HederaProvider({
   }, [demoMode, connector]);
 
   return (
-    <HederaContext.Provider
-      value={{
-        accountId,
-        balance,
-        network,
-        isConnected,
-        isConnecting,
-        demoMode,
-        signer,
-        connector,
-        connect,
-        disconnect,
-        setNetwork,
-      }}
-    >
-      {children}
-    </HederaContext.Provider>
+    <QueryClientProvider client={queryClient}>
+      <HederaContext.Provider
+        value={{
+          accountId,
+          balance,
+          network,
+          isConnected,
+          isConnecting,
+          demoMode,
+          signer,
+          connector,
+          connect,
+          disconnect,
+          setNetwork,
+        }}
+      >
+        {children}
+        <Toaster
+          position="bottom-right"
+          theme="dark"
+          toastOptions={{
+            style: {
+              background: '#1e293b',
+              border: '1px solid #334155',
+              color: '#f1f5f9',
+            },
+          }}
+        />
+      </HederaContext.Provider>
+    </QueryClientProvider>
   );
 }
