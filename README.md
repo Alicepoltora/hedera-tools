@@ -1,68 +1,25 @@
 # hedera-ui-kit
 
-> **Open-source React component library for Hedera developers.**
-> Drop-in hooks and UI components for HTS token creation, HCS message logging, and HashPack wallet connection.
+[![npm version](https://img.shields.io/npm/v/hedera-ui-kit)](https://www.npmjs.com/package/hedera-ui-kit)
+[![License: MIT](https://img.shields.io/badge/License-MIT-violet.svg)](https://opensource.org/licenses/MIT)
+[![TypeScript](https://img.shields.io/badge/TypeScript-100%25-blue)](https://www.typescriptlang.org/)
+[![Live Demo](https://img.shields.io/badge/demo-live-brightgreen)](https://hedera-ui-kit.vercel.app)
 
-[![Hackathon](https://img.shields.io/badge/Hedera%20Apex%202026-Hiero%20Bounty-7c3aed)](https://hellofuturehackathon.dev/)
-[![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.5-blue)](https://www.typescriptlang.org/)
-[![React](https://img.shields.io/badge/React-18-61dafb)](https://react.dev/)
+Open-source React component library for Hedera developers.
+Hooks and plug-and-play UI components for HTS, HCS, staking, smart contracts, and HashPack wallet connection.
 
----
-
-## The Problem
-
-Building on Hedera today means writing the same boilerplate over and over:
-- HashConnect initialisation (30+ lines)
-- Wallet state management across components
-- HTS token transactions with proper signing
-- HCS message submission + Mirror Node polling
-
-There is no React-native UI library that handles this for you — until now.
+**[→ Live Demo](https://hedera-ui-kit.vercel.app)**
 
 ---
 
-## The Solution
+## Features
 
-**hedera-ui-kit** gives you production-ready React components and hooks so you can focus on your app, not the SDK plumbing.
-
-```tsx
-// Before hedera-ui-kit: ~80 lines of boilerplate
-// After:
-import { HederaProvider, ConnectButton, useHCS } from 'hedera-ui-kit';
-
-function App() {
-  return (
-    <HederaProvider network="testnet" walletConnectProjectId="...">
-      <ConnectButton showBalance />   {/* done */}
-      <MyDApp />
-    </HederaProvider>
-  );
-}
-
-function MyDApp() {
-  const { submitMessage } = useHCS();
-  return (
-    <button onClick={() => submitMessage('0.0.12345', { co2Offset: 42 })}>
-      Log to Hedera
-    </button>
-  );
-}
-```
-
----
-
-## Live Demo
-
-```bash
-git clone https://github.com/Alicepoltora/hedera-tools.git
-cd hedera-tools
-npm install
-npm run dev
-```
-
-Open http://localhost:5173 — the demo runs in **demoMode** by default (no wallet required).
-Remove `demoMode` prop in `src/demo/App.tsx` to use real HashPack.
+- 🪝 **11 hooks** — wallet, HTS tokens, HCS messaging, staking, NFTs, smart contracts, Mirror Node
+- 🧩 **7 components** — connect button, network switcher, token forms, HCS logger, transaction status
+- 🎭 **Demo mode** — simulate all blockchain interactions without a real wallet
+- 💙 **TypeScript** — full type safety, `.d.ts` declarations included
+- ⚡ **Tree-shakeable** — import only what you use
+- 🌐 **Multi-network** — testnet / mainnet / previewnet
 
 ---
 
@@ -72,102 +29,221 @@ Remove `demoMode` prop in `src/demo/App.tsx` to use real HashPack.
 npm install hedera-ui-kit
 ```
 
-**Peer dependencies** (if not already installed):
-```bash
-npm install react react-dom
-```
+> **Peer dependencies** — must be installed in your project:
+> ```bash
+> npm install react react-dom
+> ```
 
 ---
 
 ## Quick Start
 
-### 1. Wrap your app
-
 ```tsx
-import { HederaProvider } from 'hedera-ui-kit';
+import { HederaProvider, ConnectButton, useTransfer } from 'hedera-ui-kit';
 
-// Get your free project ID at https://cloud.walletconnect.com
-function Root() {
+// 1. Wrap your app in HederaProvider
+function App() {
   return (
     <HederaProvider
       network="testnet"
-      walletConnectProjectId="YOUR_PROJECT_ID"
+      walletConnectProjectId="YOUR_WALLETCONNECT_PROJECT_ID"
+      demoMode // remove in production
+      appMetadata={{ name: 'My Hedera App' }}
     >
-      <App />
+      <MyDapp />
     </HederaProvider>
+  );
+}
+
+// 2. Use hooks and components anywhere inside the provider
+function MyDapp() {
+  const { transfer, loading, txId } = useTransfer();
+
+  return (
+    <>
+      <ConnectButton showBalance />
+      <button onClick={() => transfer('0.0.98', 1)} disabled={loading}>
+        Send 1 ℏ
+      </button>
+      {txId && <TransactionStatus txId={txId} />}
+    </>
   );
 }
 ```
 
-### 2. Add the connect button
+---
+
+## Components
+
+### `<HederaProvider />`
+
+Root context provider. Must wrap your application.
 
 ```tsx
-import { ConnectButton } from 'hedera-ui-kit';
-
-<ConnectButton showBalance />
+<HederaProvider
+  network="testnet"                  // 'testnet' | 'mainnet' | 'previewnet'
+  walletConnectProjectId="YOUR_ID"   // from cloud.walletconnect.com
+  demoMode={false}                   // simulate txs without real wallet
+  appMetadata={{
+    name: 'My App',
+    url: 'https://myapp.com',
+    description: 'Built on Hedera',
+  }}
+>
+  {children}
+</HederaProvider>
 ```
 
-### 3. Use the hooks
+---
+
+### `<ConnectButton />`
+
+HashPack wallet connect / disconnect button.
 
 ```tsx
-import { useHedera, useTransfer, useHCS } from 'hedera-ui-kit';
+<ConnectButton />
+<ConnectButton showBalance />
+<ConnectButton connectLabel="Sign in with HashPack" className="w-full" />
+```
 
-function MyComponent() {
-  const { accountId, balance, isConnected } = useHedera();
-  const { transfer } = useTransfer();
-  const { submitMessage, fetchMessages } = useHCS();
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `showBalance` | `boolean` | `false` | Show HBAR balance when connected |
+| `connectLabel` | `string` | `'Connect Wallet'` | Text when disconnected |
+| `disconnectLabel` | `string` | `'Disconnect'` | Text when connected |
+| `className` | `string` | — | Extra CSS classes |
 
-  // Send 5 HBAR
-  await transfer('0.0.9999', 5);
+---
 
-  // Log to HCS
-  await submitMessage('0.0.12345', { event: 'CO2_OFFSET', kg: 42 });
+### `<NetworkSwitcher />`
 
-  // Read from Mirror Node
-  const msgs = await fetchMessages('0.0.12345', 10);
+Dropdown or pills to switch between Hedera networks.
+
+```tsx
+<NetworkSwitcher />
+<NetworkSwitcher variant="pills" />
+```
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `variant` | `'dropdown' \| 'pills'` | `'dropdown'` | Display style |
+| `className` | `string` | — | Extra CSS classes |
+
+---
+
+### `<HBARAmount />`
+
+Formatted HBAR value with optional live USD conversion (CoinGecko, 5-min cache).
+
+```tsx
+<HBARAmount value={1234.56} />
+<HBARAmount value={1234.56} showUsd size="xl" />
+<HBARAmount value={0.0001} decimals={8} size="sm" />
+```
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `value` | `number` | — | Amount in HBAR |
+| `showUsd` | `boolean` | `false` | Show USD equivalent |
+| `size` | `'sm' \| 'base' \| 'lg' \| 'xl'` | `'base'` | Text size |
+| `decimals` | `number` | `4` | Decimal places shown |
+| `showSymbol` | `boolean` | `true` | Show ℏ symbol |
+
+---
+
+### `<TokenMintForm />`
+
+Form to create a new HTS fungible token with a single wallet interaction.
+
+```tsx
+<TokenMintForm
+  onSuccess={(result) => {
+    console.log('Token ID:', result.tokenId);
+    console.log('Tx ID:', result.txId);
+  }}
+  onError={(err) => console.error(err)}
+/>
+```
+
+```ts
+interface TokenMintResult {
+  tokenId: string;
+  txId: string | null;
 }
 ```
 
-### 4. Drop-in form components
+---
+
+### `<HCSLogger />`
+
+Submit messages to an HCS topic and display the live message feed from Mirror Node.
 
 ```tsx
-import { TokenMintForm, HCSLogger } from 'hedera-ui-kit';
-
-<TokenMintForm onSuccess={({ tokenId }) => console.log(tokenId)} />
-
 <HCSLogger
   defaultTopicId="0.0.12345"
-  pollInterval={10_000}   // auto-refresh every 10s
+  pollInterval={5000}  // ms; 0 = no polling
   limit={20}
 />
 ```
 
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `defaultTopicId` | `string` | — | Pre-fill topic ID |
+| `pollInterval` | `number` | `5000` | Mirror Node poll interval (ms) |
+| `limit` | `number` | `10` | Max messages to display |
+
 ---
 
-## API Reference
+### `<TransactionStatus />`
 
-### `<HederaProvider>`
+Live transaction status polling with HashScan explorer link.
+
+```tsx
+<TransactionStatus txId="0.0.12345@1710000000.000000000" />
+<TransactionStatus txId={txId} pollInterval={3000} />
+```
 
 | Prop | Type | Default | Description |
-|---|---|---|---|
-| `network` | `'testnet' \| 'mainnet' \| 'previewnet'` | `'testnet'` | Target Hedera network |
-| `walletConnectProjectId` | `string` | required | WalletConnect Cloud project ID |
-| `demoMode` | `boolean` | `false` | Simulate wallet interactions (no HashPack needed) |
-| `appMetadata` | `object` | — | App name, description, URL, icons shown in wallet modal |
+|------|------|---------|-------------|
+| `txId` | `string \| null` | — | Hedera transaction ID |
+| `pollInterval` | `number` | `3000` | Poll interval in ms |
+| `poll` | `boolean` | `true` | Enable/disable polling |
 
 ---
+
+### `<TokenCard />`
+
+Token metadata card fetched from Mirror Node, with built-in skeleton loader.
+
+```tsx
+<TokenCard tokenId="0.0.1234567" showId />
+<TokenCard tokenId="0.0.1234567" onClick={(info) => console.log(info)} />
+```
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `tokenId` | `string` | — | Hedera token ID |
+| `showId` | `boolean` | `false` | Display token ID in card |
+| `onClick` | `(info: TokenInfo) => void` | — | Optional click handler |
+
+---
+
+## Hooks
 
 ### `useHedera()`
 
-```ts
+Primary wallet hook — returns state and connect / disconnect actions.
+
+```tsx
 const {
-  accountId,      // string | null
-  balance,        // number | null  (HBAR)
-  network,        // HederaNetwork
-  isConnected,    // boolean
-  isConnecting,   // boolean
-  connect,        // () => Promise<void>
-  disconnect,     // () => Promise<void>
+  accountId,   // string | null — '0.0.12345'
+  balance,     // number | null — HBAR balance
+  isConnected, // boolean
+  network,     // 'testnet' | 'mainnet' | 'previewnet'
+  demoMode,    // boolean
+  connect,     // () => Promise<void>
+  disconnect,  // () => void
+  signer,      // DAppSigner | null — pass to SDK transactions
 } = useHedera();
 ```
 
@@ -175,145 +251,239 @@ const {
 
 ### `useTransfer()`
 
-```ts
+Send HBAR from the connected wallet to another account.
+
+```tsx
+const { transfer, loading, txId, error, reset } = useTransfer();
+
+await transfer('0.0.9999', 5); // send 5 HBAR
+// txId → pass to <TransactionStatus txId={txId} />
+```
+
+| Return | Type | Description |
+|--------|------|-------------|
+| `transfer` | `(to: string, amount: number) => Promise<string \| null>` | Execute transfer |
+| `txId` | `string \| null` | Transaction ID after signing |
+| `loading` | `boolean` | True while signing / broadcasting |
+| `error` | `string \| null` | Error message |
+| `reset` | `() => void` | Clear txId and error state |
+
+---
+
+### `useTokenBalance()`
+
+HTS token balance for the connected account (or any account ID you pass).
+
+```tsx
+const { balance, loading, error, refetch } = useTokenBalance('0.0.1234567');
+
+// Specify a different account:
+const { balance } = useTokenBalance('0.0.1234567', '0.0.9999');
+
+// balance.amount    → raw integer (before decimals)
+// balance.formatted → amount / 10^decimals
+// balance.symbol    → 'CCR'
+// balance.decimals  → 2
+// balance.name      → 'Carbon Credit'
+```
+
+---
+
+### `useAccountInfo()`
+
+Full account info from Mirror Node.
+
+```tsx
+const { info, loading, error, refetch } = useAccountInfo();
+// Defaults to connected wallet — or pass any account ID:
+const { info } = useAccountInfo('0.0.9999');
+
+// info.accountId          → '0.0.12345'
+// info.evmAddress         → '0xabc...' | null
+// info.balance            → HBAR (float)
+// info.stakedNodeId       → number | null
+// info.pendingReward      → HBAR
+// info.tokens[]           → [{ tokenId: '0.0.X', balance: number }]
+// info.createdTimestamp   → ISO string
+```
+
+---
+
+### `useNFT()`
+
+NFT metadata, collections, and account ownership.
+
+```tsx
 const {
-  transfer,   // (toAccountId: string, amountHbar: number) => Promise<string | null>
-  loading,    // boolean
-  error,      // string | null
-  txId,       // string | null
-  reset,      // () => void
-} = useTransfer();
+  nft, collection, accountNFTs, loading, error,
+  fetchNFT, fetchCollection, fetchAccountNFTs,
+} = useNFT();
+
+// Single NFT
+await fetchNFT('0.0.1234567', 1);
+// nft.tokenId, nft.serialNumber, nft.metadata, nft.owner
+
+// Entire collection
+await fetchCollection('0.0.1234567');
+// collection.tokenId, collection.nfts[], collection.totalMinted
+
+// All NFTs owned by an account
+await fetchAccountNFTs('0.0.12345');
+```
+
+---
+
+### `useStaking()`
+
+Staking info for the connected account and a list of network nodes.
+
+```tsx
+const { stakingInfo, networkNodes, loading, stake, unstake } = useStaking();
+
+// stakingInfo.stakedNodeId     — node you're staked to (number | null)
+// stakingInfo.pendingReward    — HBAR pending reward
+// stakingInfo.declineReward    — boolean
+// stakingInfo.stakePeriodStart — ISO timestamp
+
+// networkNodes[].nodeId, .description, .stake
+
+await stake(3); // stake to node 3
 ```
 
 ---
 
 ### `useHCS()`
 
+Submit messages to and read from Hedera Consensus Service.
+
+```tsx
+const { submit, messages, loading, error, fetchMessages } = useHCS();
+
+const txId = await submit('0.0.12345', 'Hello Hedera!');
+
+await fetchMessages('0.0.12345', { limit: 20 });
+// messages[].sequenceNumber
+// messages[].message           → decoded UTF-8 string
+// messages[].consensusTimestamp
+// messages[].runningHash
+```
+
+---
+
+### `useContractRead()`
+
+Read smart contract state via `eth_call` through HashIO JSON-RPC Relay — no wallet required.
+
+```tsx
+const { data, loading, error, refetch } = useContractRead(
+  '0x0000000000000000000000000000000000abcdef', // contract EVM address
+  encodedCallData,   // viem / ethers ABI-encoded bytes | null
+  {
+    enabled: true,       // auto-fetch on mount (default: true)
+    pollInterval: 5000,  // optional live polling in ms
+  }
+);
+```
+
+> Endpoint used: `https://testnet.hashio.io/api`
+
+---
+
+### `useContractWrite()`
+
+Execute a state-changing smart contract function (requires connected wallet).
+
+```tsx
+const { write, loading, txId, error } = useContractWrite();
+
+await write({
+  contractId: '0.0.1234567',
+  functionName: 'transfer',
+  params: new ContractFunctionParameters()
+    .addAddress('0x...')
+    .addUint256(100),
+  gas: 100_000,
+  payableAmount: 0, // optional HBAR to attach
+});
+```
+
+---
+
+### `useTokenAssociate()`
+
+Associate or dissociate HTS tokens for the connected account.
+
+```tsx
+const { associate, dissociate, loading, txId } = useTokenAssociate();
+
+// Required before receiving a token for the first time
+await associate('0.0.1234567');
+
+// Remove association (account balance must be 0)
+await dissociate('0.0.1234567');
+```
+
+---
+
+### `useMirrorNode()`
+
+Generic Mirror Node GET request with optional auto-polling.
+
+```tsx
+const { data, loading, error, refetch } = useMirrorNode<MyType>(
+  '/api/v1/tokens/0.0.1234567',
+  { pollInterval: 10_000 }
+);
+```
+
+---
+
+## TypeScript
+
+All interfaces and types are exported:
+
 ```ts
-const {
-  submitMessage,        // (topicId: string, payload: string | object) => Promise<string | null>
-  fetchMessages,        // (topicId: string, limit?: number) => Promise<HCSMessage[]>
-  loading,              // boolean
-  error,                // string | null
-  lastSequenceNumber,   // string | null
-  reset,                // () => void
-} = useHCS();
+import type {
+  AccountInfo,
+  TokenBalance,
+  TokenMintResult,
+  HCSMessage,
+  NFTInfo,
+  NFTCollection,
+  StakingInfo,
+  NetworkNode,
+  HederaNetwork,
+  HederaContextState,
+} from 'hedera-ui-kit';
 ```
 
 ---
 
-### `<ConnectButton>`
+## Demo Mode
 
-| Prop | Type | Default |
-|---|---|---|
-| `label` | `string` | `'Connect Wallet'` |
-| `showBalance` | `boolean` | `false` |
-| `className` | `string` | `''` |
+Set `demoMode` on `<HederaProvider>` to simulate all blockchain interactions without a real wallet or network. Transactions return fake IDs after a short delay — great for development, tests, and presentations.
 
----
-
-### `<TokenMintForm>`
-
-| Prop | Type | Default |
-|---|---|---|
-| `onSuccess` | `(result: { tokenId: string; txId?: string }) => void` | — |
-| `onError` | `(error: string) => void` | — |
-| `className` | `string` | `''` |
-
----
-
-### `<HCSLogger>`
-
-| Prop | Type | Default |
-|---|---|---|
-| `defaultTopicId` | `string` | `''` |
-| `pollInterval` | `number` (ms) | `0` (disabled) |
-| `limit` | `number` | `10` |
-| `className` | `string` | `''` |
-
----
-
-## Project Structure
-
-```
-hedera-ui-kit/
-├── src/
-│   ├── lib/                        # 📦 Library — published to npm
-│   │   ├── context/
-│   │   │   └── HederaProvider.tsx  # Wallet state, network, demo mode
-│   │   ├── hooks/
-│   │   │   ├── useHedera.ts        # Account ID, balance, connect/disconnect
-│   │   │   ├── useTransfer.ts      # Send HBAR with wallet signing
-│   │   │   └── useHCS.ts           # Submit & fetch HCS messages
-│   │   ├── components/
-│   │   │   ├── ConnectButton.tsx   # HashPack connect/disconnect button
-│   │   │   ├── TokenMintForm.tsx   # HTS fungible token creation form
-│   │   │   └── HCSLogger.tsx       # HCS submit + Mirror Node message feed
-│   │   └── index.ts                # Public API exports
-│   │
-│   └── demo/                       # 🖥 Demo app (for judges)
-│       ├── App.tsx
-│       ├── main.tsx
-│       └── index.css
-│
-├── index.html
-├── vite.config.ts                  # Dev = demo app | lib mode = npm build
-├── tailwind.config.js
-├── tsconfig.json
-└── package.json
+```tsx
+<HederaProvider network="testnet" walletConnectProjectId="any" demoMode>
+  {children}
+</HederaProvider>
 ```
 
 ---
 
-## Build
+## Requirements
 
-```bash
-# Run demo app (development)
-npm run dev
+| Package | Version |
+|---------|---------|
+| `react` | ≥ 18.0.0 |
+| `react-dom` | ≥ 18.0.0 |
 
-# Build demo app
-npm run build
-
-# Build library for npm publishing
-npm run build:lib
-```
-
-The library build outputs to `dist/` with:
-- `hedera-ui-kit.js` — ES module
-- `hedera-ui-kit.umd.cjs` — UMD (CommonJS)
-- `index.d.ts` — TypeScript declarations
-
----
-
-## Tech Stack
-
-| | |
-|---|---|
-| Framework | React 18 + TypeScript |
-| Bundler | Vite 5 |
-| Styling | Tailwind CSS 3 |
-| Hedera SDK | @hashgraph/sdk ^2.50 |
-| Wallet | @hashgraph/hashconnect ^3 (WalletConnect-based) |
-
----
-
-## Hackathon
-
-| | |
-|---|---|
-| **Event** | [Hedera Hello Future Apex 2026](https://hellofuturehackathon.dev/) |
-| **Track** | Open Track + Hiero Bounty |
-| **Hiero Bounty** | *"Open-source developer library improving Hiero network interaction"* |
-| **Deadline** | March 23, 2026 — 11:59 PM ET |
-
----
-
-## Contributing
-
-PRs and issues are welcome! See [CONTRIBUTING.md](./CONTRIBUTING.md).
+> **Note:** `@hiero-ledger/sdk` is pinned to `2.79.0` as a peer dependency of `hedera-wallet-connect`. Add `.npmrc` with `legacy-peer-deps=true` if you encounter install conflicts.
 
 ---
 
 ## License
 
-MIT © Alice
+MIT © 2026
+
+Built for the [Hedera Hello Future Apex 2026 Hackathon](https://hedera.com/hackathon) — Hiero Bounty.
