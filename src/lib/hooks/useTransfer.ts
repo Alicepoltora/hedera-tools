@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { Hbar, TransferTransaction } from '@hashgraph/sdk';
+import { Hbar, HbarUnit, TransferTransaction } from '@hiero-ledger/sdk';
 import { useHedera } from './useHedera';
 
 export interface TransferResult {
@@ -54,8 +54,8 @@ export function useTransfer(): TransferResult {
         if (!signer) throw new Error('Wallet signer not available');
 
         const tx = await new TransferTransaction()
-          .addHbarTransfer(accountId, Hbar.from(-amountHbar))
-          .addHbarTransfer(toAccountId, Hbar.from(amountHbar))
+          .addHbarTransfer(accountId, Hbar.from(-amountHbar, HbarUnit.Hbar))
+          .addHbarTransfer(toAccountId, Hbar.from(amountHbar, HbarUnit.Hbar))
           .freezeWithSigner(signer);
 
         const response = await tx.executeWithSigner(signer);
