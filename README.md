@@ -1,9 +1,10 @@
 # hedera-ui-kit
 
-[![npm version](https://img.shields.io/npm/v/hedera-ui-kit)](https://www.npmjs.com/package/hedera-ui-kit)
-[![License: MIT](https://img.shields.io/badge/License-MIT-violet.svg)](https://opensource.org/licenses/MIT)
-[![TypeScript](https://img.shields.io/badge/TypeScript-100%25-blue)](https://www.typescriptlang.org/)
-[![Live Demo](https://img.shields.io/badge/demo-live-brightgreen)](https://hedera-ui-kit.vercel.app)
+[![npm version](https://img.shields.io/npm/v/hedera-ui-kit?color=crimson&logo=npm)](https://www.npmjs.com/package/hedera-ui-kit)
+[![npm downloads](https://img.shields.io/npm/dm/hedera-ui-kit?color=crimson)](https://www.npmjs.com/package/hedera-ui-kit)
+[![License: MIT](https://img.shields.io/badge/License-MIT-7c3aed.svg)](https://opensource.org/licenses/MIT)
+[![TypeScript](https://img.shields.io/badge/TypeScript-100%25-3178c6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Live Demo](https://img.shields.io/badge/demo-live-22c55e?logo=vercel&logoColor=white)](https://hedera-ui-kit.vercel.app)
 
 Open-source React component library for Hedera developers.
 Hooks and plug-and-play UI components for HTS, HCS, staking, smart contracts, and HashPack wallet connection.
