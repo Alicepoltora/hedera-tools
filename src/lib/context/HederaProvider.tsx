@@ -5,8 +5,14 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { HashConnect, type SessionData } from '@hashgraph/hashconnect';
 import { LedgerId } from '@hashgraph/sdk';
+import {
+  DAppConnector,
+  HederaJsonRpcMethod,
+  HederaSessionEvent,
+  HederaChainId,
+  type DAppSigner,
+} from '@hashgraph/hedera-wallet-connect';
 
 // ─────────────────────────────────────────────
 // Types
@@ -21,7 +27,8 @@ export interface HederaContextState {
   isConnected: boolean;
   isConnecting: boolean;
   demoMode: boolean;
-  hashconnect: HashConnect | null;
+  signer: DAppSigner | null;
+  connector: DAppConnector | null;
   connect: () => Promise<void>;
   disconnect: () => Promise<void>;
   setNetwork: (network: HederaNetwork) => void;
@@ -33,7 +40,7 @@ export interface HederaProviderProps {
   network?: HederaNetwork;
   /** WalletConnect Cloud project ID — https://cloud.walletconnect.com */
   walletConnectProjectId: string;
-  /** When true, wallet interactions are simulated (useful for demos / CI) */
+  /** When true, wallet interactions are simulated — great for demos */
   demoMode?: boolean;
   appMetadata?: {
     name?: string;
@@ -44,7 +51,7 @@ export interface HederaProviderProps {
 }
 
 // ─────────────────────────────────────────────
-// Context
+// Context defaults
 // ─────────────────────────────────────────────
 
 export const HederaContext = createContext<HederaContextState>({
@@ -54,11 +61,16 @@ export const HederaContext = createContext<HederaContextState>({
   isConnected: false,
   isConnecting: false,
   demoMode: false,
-  hashconnect: null,
+  signer: null,
+  connector: null,
   connect: async () => {},
   disconnect: async () => {},
   setNetwork: () => {},
 });
+
+// ─────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────
 
 const MIRROR_NODES: Record<HederaNetwork, string> = {
   testnet: 'https://testnet.mirrornode.hedera.com',
@@ -66,10 +78,10 @@ const MIRROR_NODES: Record<HederaNetwork, string> = {
   previewnet: 'https://previewnet.mirrornode.hedera.com',
 };
 
-const LEDGER_IDS: Record<HederaNetwork, LedgerId> = {
-  testnet: LedgerId.TESTNET,
-  mainnet: LedgerId.MAINNET,
-  previewnet: LedgerId.PREVIEWNET,
+const CHAIN_IDS: Record<HederaNetwork, HederaChainId> = {
+  testnet: HederaChainId.Testnet,
+  mainnet: HederaChainId.Mainnet,
+  previewnet: HederaChainId.Testnet, // previewnet maps to testnet chain
 };
 
 const DEMO_ACCOUNT = '0.0.1234567';
@@ -91,9 +103,12 @@ export function HederaProvider({
   const [balance, setBalance] = useState<number | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
-  const [hashconnect, setHashconnect] = useState<HashConnect | null>(null);
+  const [signer, setSigner] = useState<DAppSigner | null>(null);
+  const [connector, setConnector] = useState<DAppConnector | null>(null);
 
-  // ── Fetch balance from Mirror Node ──
+  const ledgerId = network === 'mainnet' ? LedgerId.MAINNET : LedgerId.TESTNET;
+
+  // ── Fetch HBAR balance from Mirror Node ──
   const fetchBalance = useCallback(
     async (accId: string) => {
       try {
@@ -110,47 +125,50 @@ export function HederaProvider({
     [network]
   );
 
-  // ── Initialise HashConnect ──
+  // ── Initialise WalletConnect DApp Connector ──
   useEffect(() => {
-    if (demoMode) return; // skip in demo mode
+    if (demoMode) return;
 
-    const hc = new HashConnect(
-      LEDGER_IDS[network],
+    const dAppMetadata = {
+      name: appMetadata.name ?? 'Hedera UI Kit',
+      description: appMetadata.description ?? 'Built with hedera-ui-kit',
+      url: appMetadata.url ?? window.location.origin,
+      icons: appMetadata.icons ?? [`${window.location.origin}/favicon.ico`],
+    };
+
+    const dAppConnector = new DAppConnector(
+      dAppMetadata,
+      ledgerId,
       walletConnectProjectId,
-      {
-        name: appMetadata.name ?? 'Hedera UI Kit',
-        description: appMetadata.description ?? 'Built with hedera-ui-kit',
-        url: appMetadata.url ?? window.location.origin,
-        icons: appMetadata.icons ?? [`${window.location.origin}/favicon.ico`],
-      },
-      false // debug off
+      Object.values(HederaJsonRpcMethod),
+      [HederaSessionEvent.ChainChanged, HederaSessionEvent.AccountsChanged],
+      [CHAIN_IDS[network]]
     );
 
-    hc.pairingEvent.on((data: SessionData) => {
-      const accId = data.accountIds?.[0]?.toString();
-      if (accId) {
+    void dAppConnector.init({ logger: 'error' }).then(() => {
+      setConnector(dAppConnector);
+
+      // Restore existing session if available
+      const signers = dAppConnector.signers;
+      if (signers.length > 0) {
+        const s = signers[0];
+        const accId = s.getAccountId().toString();
+        setSigner(s);
         setAccountId(accId);
         setIsConnected(true);
-        setIsConnecting(false);
         void fetchBalance(accId);
       }
     });
 
-    hc.disconnectionEvent.on(() => {
-      setIsConnected(false);
-      setAccountId(null);
-      setBalance(null);
-    });
-
-    void hc.init().then(() => setHashconnect(hc));
-
     return () => {
-      void hc.disconnect();
+      void dAppConnector.disconnectAll().catch(() => {});
     };
-  }, [network, walletConnectProjectId, demoMode, fetchBalance, appMetadata.description, appMetadata.icons, appMetadata.name, appMetadata.url]);
+  }, [network, walletConnectProjectId, demoMode, ledgerId, fetchBalance,
+      appMetadata.description, appMetadata.icons, appMetadata.name, appMetadata.url]);
 
   // ── connect ──
   const connect = useCallback(async () => {
+    // Demo mode — simulate wallet connection
     if (demoMode) {
       setIsConnecting(true);
       await new Promise((r) => setTimeout(r, 900));
@@ -160,14 +178,26 @@ export function HederaProvider({
       setIsConnecting(false);
       return;
     }
-    if (!hashconnect) return;
+
+    if (!connector) return;
     setIsConnecting(true);
     try {
-      hashconnect.openModal();
+      await connector.openModal();
+      const signers = connector.signers;
+      if (signers.length > 0) {
+        const s = signers[0];
+        const accId = s.getAccountId().toString();
+        setSigner(s);
+        setAccountId(accId);
+        setIsConnected(true);
+        void fetchBalance(accId);
+      }
     } catch {
+      // User closed modal
+    } finally {
       setIsConnecting(false);
     }
-  }, [demoMode, hashconnect]);
+  }, [demoMode, connector, fetchBalance]);
 
   // ── disconnect ──
   const disconnect = useCallback(async () => {
@@ -175,14 +205,16 @@ export function HederaProvider({
       setIsConnected(false);
       setAccountId(null);
       setBalance(null);
+      setSigner(null);
       return;
     }
-    if (!hashconnect) return;
-    await hashconnect.disconnect();
+    if (!connector) return;
+    await connector.disconnectAll().catch(() => {});
     setIsConnected(false);
     setAccountId(null);
     setBalance(null);
-  }, [demoMode, hashconnect]);
+    setSigner(null);
+  }, [demoMode, connector]);
 
   return (
     <HederaContext.Provider
@@ -193,7 +225,8 @@ export function HederaProvider({
         isConnected,
         isConnecting,
         demoMode,
-        hashconnect,
+        signer,
+        connector,
         connect,
         disconnect,
         setNetwork,
