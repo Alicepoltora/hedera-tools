@@ -36,11 +36,6 @@ export function useTokenBurn(): UseTokenBurnResult {
 
   const executeBurn = useCallback(
     async (tokenId: string, amount: number, serials: number[]): Promise<string | null> => {
-      if (!isConnected) {
-        setError('Wallet not connected');
-        return null;
-      }
-
       setLoading(true);
       setError(null);
 
@@ -50,6 +45,12 @@ export function useTokenBurn(): UseTokenBurnResult {
         setTxId(fakeId);
         setLoading(false);
         return fakeId;
+      }
+
+      if (!isConnected) {
+        setError('Wallet not connected');
+        setLoading(false);
+        return null;
       }
 
       try {
