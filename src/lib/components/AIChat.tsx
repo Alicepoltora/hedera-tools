@@ -18,12 +18,12 @@ export interface AIChatProps {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const QUICK_ACTIONS = [
-  { label: 'Мой баланс', text: 'Сколько HBAR у меня на балансе?' },
-  { label: 'Отправить HBAR', text: 'Отправь 5 HBAR на 0.0.98' },
-  { label: 'Создать токен', text: 'Создай токен Carbon Credit с символом CCR, 1000 начального запаса' },
-  { label: 'Создать NFT', text: 'Создай NFT коллекцию Pixel Cats с лимитом 100' },
-  { label: 'HCS сообщение', text: 'Запиши в топик 0.0.9999999: {"event":"deploy","version":"1.1.0"}' },
-  { label: 'Помощь', text: 'Что ты умеешь делать?' },
+  { label: 'My balance', text: 'What is my current HBAR balance?' },
+  { label: 'Send HBAR', text: 'Send 5 HBAR to 0.0.98' },
+  { label: 'Create token', text: 'Create a token called Carbon Credit with symbol CCR and 1000 initial supply' },
+  { label: 'Create NFT', text: 'Create an NFT collection called Pixel Cats with a max supply of 100' },
+  { label: 'HCS message', text: 'Submit to topic 0.0.9999999: {"event":"deploy","version":"1.1.0"}' },
+  { label: 'Help', text: 'What can you do?' },
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -376,7 +376,7 @@ export function AIChat({
           </button>
         </div>
         <p className="text-xs text-slate-700 mt-1.5 text-center">
-          Enter — отправить · Shift+Enter — перенос строки
+          Enter to send · Shift+Enter for new line
         </p>
       </div>
     </div>
