@@ -246,10 +246,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const lastMessage = messages[messages.length - 1];
     const historyMessages = messages.slice(0, -1);
 
-    const history = historyMessages.map((m) => ({
-      role: m.role === 'assistant' ? 'model' : 'user',
-      parts: [{ text: m.content }],
-    }));
+    // Gemini requires:
+    // 1. History must start with role 'user' (not 'model')
+    // 2. Roles must alternate user/model — no consecutive same-role messages
+    // 3. 'system' role doesn't exist in Gemini history (handled via systemInstruction)
+    const rawHistory = historyMessages
+      .filter((m) => m.role === 'user' || m.role === 'assistant')
+      .map((m) => ({
+        role: m.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: m.content }],
+      }));
+
+    // Drop leading model messages so history always starts with 'user'
+    while (rawHistory.length > 0 && rawHistory[0].role === 'model') {
+      rawHistory.shift();
+    }
+
+    // Ensure strict alternation: if two consecutive same-role messages appear,
+    // merge them into one (Gemini rejects non-alternating turns)
+    const history: { role: string; parts: { text: string }[] }[] = [];
+    for (const turn of rawHistory) {
+      if (history.length > 0 && history[history.length - 1].role === turn.role) {
+        // Merge with previous turn
+        history[history.length - 1].parts.push(...turn.parts);
+      } else {
+        history.push(turn);
+      }
+    }
 
     const chat = model.startChat({ history });
 
