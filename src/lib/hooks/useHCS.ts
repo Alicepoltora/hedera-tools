@@ -47,11 +47,6 @@ export function useHCS(): UseHCSResult {
 
   const submitMessage = useCallback(
     async (topicId: string, payload: string | object): Promise<string | null> => {
-      if (!isConnected || !accountId) {
-        setError('Wallet not connected.');
-        return null;
-      }
-
       setLoading(true);
       setError(null);
 
@@ -68,6 +63,12 @@ export function useHCS(): UseHCSResult {
       }
 
       // ── Real mode ──
+      if (!isConnected || !accountId) {
+        setError('Wallet not connected.');
+        setLoading(false);
+        return null;
+      }
+
       try {
         if (!signer) throw new Error('Wallet signer not available');
 
