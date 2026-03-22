@@ -15,6 +15,7 @@ import {
   StakingPanel,
   TopicMessageFeed,
   ContractCallButton,
+  AIChat,
   useHedera,
   useTransfer,
   useTokenBalance,
@@ -1383,6 +1384,101 @@ function UtilitiesSection() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// SECTION: AI Agent
+// ─────────────────────────────────────────────────────────────────────────────
+
+function AIAgentSection() {
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-xl font-semibold text-white">AI Agent</h2>
+        <p className="text-slate-400 text-sm mt-1.5 leading-relaxed">
+          Natural language interface to Hedera. The agent understands commands, creates action cards, and executes transactions via your connected wallet after confirmation.
+        </p>
+      </div>
+
+      {/* Architecture callout */}
+      <div className="rounded-xl bg-slate-800/60 border border-slate-700/50 p-4 space-y-2">
+        <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Architecture</p>
+        <div className="flex items-center gap-2 text-xs text-slate-400 flex-wrap">
+          <span className="bg-slate-700 px-2 py-1 rounded font-mono">AIChat</span>
+          <span className="text-slate-600">→</span>
+          <span className="bg-slate-700 px-2 py-1 rounded font-mono">useAIAgent</span>
+          <span className="text-slate-600">→</span>
+          <span className="bg-violet-900/40 border border-violet-700/40 px-2 py-1 rounded font-mono text-violet-300">/api/ai-agent</span>
+          <span className="text-slate-600">→</span>
+          <span className="bg-amber-900/30 border border-amber-700/30 px-2 py-1 rounded font-mono text-amber-300">Claude API</span>
+        </div>
+        <p className="text-xs text-slate-500 mt-1">
+          Claude runs server-side (API key stays safe). Transactions are signed client-side via wallet. Set <code className="text-violet-400">ANTHROPIC_API_KEY</code> in Vercel env to enable real AI — demo mode uses scripted responses.
+        </p>
+      </div>
+
+      {/* Live AIChat */}
+      <DemoCard
+        title="<AIChat />"
+        badge="component"
+        snippet={`import { AIChat } from 'hedera-ui-kit';
+
+// Add ANTHROPIC_API_KEY to Vercel environment variables
+// Without it — runs in scripted demo mode
+
+<AIChat
+  apiEndpoint="/api/ai-agent"
+  placeholder="send 5 HBAR to 0.0.98..."
+/>`}
+      >
+        <AIChat
+          placeholder="Попробуй: 'Мой баланс', 'отправь 5 HBAR', 'создай токен Carbon Credit'…"
+          maxHeight={380}
+        />
+      </DemoCard>
+
+      {/* useAIAgent hook docs */}
+      <DemoCard
+        title="useAIAgent() — hook"
+        badge="hook"
+        snippet={`import { useAIAgent } from 'hedera-ui-kit';
+
+const {
+  messages,          // ChatMessage[] — full chat history
+  loading,           // boolean — waiting for AI
+  executing,         // boolean — signing transaction
+  sendMessage,       // (text: string) => Promise<void>
+  confirmAction,     // (messageId: string) => Promise<void>
+  cancelAction,      // (messageId: string) => void
+  clearChat,         // () => void
+} = useAIAgent({ apiEndpoint: '/api/ai-agent' });
+
+// Each ChatMessage may contain an action:
+// { type: 'transfer_hbar', params: { to, amount }, description }
+// Call confirmAction(msg.id) to execute it`}
+      >
+        <div className="space-y-3 text-sm text-slate-400">
+          <p>The hook manages the full chat lifecycle — messages, AI calls, and on-chain execution. You can build a fully custom chat UI on top of it.</p>
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            {[
+              { action: 'transfer_hbar', hook: 'useTransfer()' },
+              { action: 'create_token', hook: 'useTokenCreate()' },
+              { action: 'burn_tokens', hook: 'useTokenBurn()' },
+              { action: 'schedule_transfer', hook: 'useScheduledTransaction()' },
+              { action: 'submit_hcs_message', hook: 'useHCS()' },
+              { action: 'associate_token', hook: 'useTokenAssociate()' },
+            ].map((row) => (
+              <div key={row.action} className="flex items-center gap-2 bg-slate-800/60 rounded-lg p-2">
+                <code className="text-violet-300 font-mono truncate">{row.action}</code>
+                <span className="text-slate-600">→</span>
+                <code className="text-emerald-400 font-mono text-[11px] truncate">{row.hook}</code>
+              </div>
+            ))}
+          </div>
+        </div>
+      </DemoCard>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Sidebar navigation
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -1397,6 +1493,7 @@ const SECTIONS = [
   { id: 'contracts',     label: 'Contracts',      icon: '📄' },
   { id: 'transactions',  label: 'Transactions',   icon: '📋' },
   { id: 'utilities',     label: 'Utilities',      icon: '🔧' },
+  { id: 'ai',            label: 'AI Agent',       icon: '🤖' },
 ] as const;
 
 type SectionId = (typeof SECTIONS)[number]['id'];
@@ -1469,6 +1566,7 @@ function DemoShell() {
           {active === 'contracts'     && <ContractsSection />}
           {active === 'transactions'  && <TransactionsSection />}
           {active === 'utilities'     && <UtilitiesSection />}
+          {active === 'ai'            && <AIAgentSection />}
         </div>
       </main>
     </div>
