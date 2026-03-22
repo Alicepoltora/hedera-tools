@@ -38,11 +38,6 @@ export function useTokenAssociate(): UseTokenAssociateResult {
 
   const runTx = useCallback(
     async (tokenIds: string | string[], type: 'associate' | 'dissociate'): Promise<string | null> => {
-      if (!isConnected || !accountId) {
-        setError('Wallet not connected.');
-        return null;
-      }
-
       setLoading(true);
       setError(null);
 
@@ -54,6 +49,12 @@ export function useTokenAssociate(): UseTokenAssociateResult {
         setTxId(fake);
         setLoading(false);
         return fake;
+      }
+
+      if (!isConnected || !accountId) {
+        setError('Wallet not connected.');
+        setLoading(false);
+        return null;
       }
 
       try {
