@@ -170,7 +170,7 @@ You can help users perform blockchain operations using these functions:
 3. Ask for clarification if intent is ambiguous
 4. If wallet is not connected, tell the user to connect their wallet first
 5. Be concise — 1-3 sentences for simple answers
-6. Always respond in English, regardless of the language the user writes in`;
+6. Respond in the same language the user writes in`;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
