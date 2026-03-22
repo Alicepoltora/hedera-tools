@@ -177,9 +177,9 @@ export function HederaProvider({
       }
     });
 
-    return () => {
-      void dAppConnector.disconnectAll().catch(() => {});
-    };
+    // Do NOT call disconnectAll() here — it would destroy the WalletConnect
+    // session stored in localStorage and force re-auth on every page reload.
+    return () => {};
   }, [network, walletConnectProjectId, demoMode, ledgerId, fetchBalance,
       appMetadata.description, appMetadata.icons, appMetadata.name, appMetadata.url]);
 
