@@ -71,13 +71,15 @@ const DEMO_DELAY = 1200;
 function getDemoResponse(text: string, balance: number | null): { message: string; action?: AIAction } {
   const lower = text.toLowerCase();
 
-  if (lower.includes('баланс') || lower.includes('balance') || lower.includes('сколько')) {
+  if (lower.includes('balance') || lower.includes('hbar') && lower.includes('how')) {
+    const hbar = balance?.toFixed(2) ?? '—';
+    const usd = balance != null ? `~$${(balance * 0.004).toFixed(2)} USD` : '';
     return {
-      message: `Your wallet holds **${balance?.toFixed(2) ?? '1234.56'} HBAR** (~$${((balance ?? 1234.56) * 0.004).toFixed(2)} USD). Would you like to do something with these funds?`,
+      message: `Your wallet holds **${hbar} HBAR**${usd ? ` (${usd})` : ''}. Would you like to do something with these funds?`,
     };
   }
 
-  if (lower.includes('отправ') || lower.includes('send') || lower.includes('transfer') || lower.includes('перевод')) {
+  if (lower.includes('send') || lower.includes('transfer')) {
     return {
       message: 'Ready to send HBAR. Please confirm the transaction:',
       action: {
@@ -89,19 +91,7 @@ function getDemoResponse(text: string, balance: number | null): { message: strin
     };
   }
 
-  if (lower.includes('создай') || lower.includes('create') || lower.includes('token') || lower.includes('токен')) {
-    return {
-      message: 'Creating a new token. Please confirm:',
-      action: {
-        type: 'create_token',
-        params: { name: 'Demo Token', symbol: 'DMT', type: 'FUNGIBLE', initialSupply: 1000, decimals: 2 },
-        confirmationRequired: true,
-        description: 'Create token "Demo Token" (DMT)',
-      },
-    };
-  }
-
-  if (lower.includes('nft') || lower.includes('коллекц')) {
+  if (lower.includes('nft') || lower.includes('collection')) {
     return {
       message: 'Creating NFT collection. Please confirm:',
       action: {
@@ -113,35 +103,47 @@ function getDemoResponse(text: string, balance: number | null): { message: strin
     };
   }
 
-  if (lower.includes('hcs') || lower.includes('сообщен') || lower.includes('message') || lower.includes('топик')) {
+  if (lower.includes('create') || lower.includes('token') || lower.includes('launch')) {
+    return {
+      message: 'Creating a new token. Please confirm:',
+      action: {
+        type: 'create_token',
+        params: { name: 'Demo Token', symbol: 'DMT', type: 'FUNGIBLE', initialSupply: 1000, decimals: 2 },
+        confirmationRequired: true,
+        description: 'Create token "Demo Token" (DMT)',
+      },
+    };
+  }
+
+  if (lower.includes('hcs') || lower.includes('message') || lower.includes('topic') || lower.includes('submit') || lower.includes('log')) {
     return {
       message: 'Submitting message to HCS topic. Please confirm:',
       action: {
         type: 'submit_hcs_message',
         params: { topicId: '0.0.9999999', message: text },
         confirmationRequired: true,
-        description: `Submit to topic 0.0.9999999`,
+        description: 'Submit to topic 0.0.9999999',
       },
     };
   }
 
-  if (lower.includes('стейк') || lower.includes('staking') || lower.includes('награда') || lower.includes('reward')) {
+  if (lower.includes('staking') || lower.includes('stake') || lower.includes('reward') || lower.includes('node')) {
     return {
       message:
-        'Your account is staking on **Node 3**. Expected reward: **0.42 HBAR**. Current network APR ~6.5%. To change the node or claim rewards, you need to sign a transaction via your wallet.',
+        'Your account is staking on **Node 3**. Expected reward: **0.42 HBAR**. Current network APR ~6.5%. To change the node or claim rewards you need to sign a transaction via your wallet.',
     };
   }
 
-  if (lower.includes('hedera') || lower.includes('что') || lower.includes('what') || lower.includes('как') || lower.includes('help') || lower.includes('помог')) {
+  if (lower.includes('what') || lower.includes('help') || lower.includes('hedera') || lower.includes('can you')) {
     return {
       message:
-        'I\'m the AI assistant built into hedera-ui-kit. I can help with:\n\n• **Sending HBAR** — "send 5 HBAR to 0.0.98"\n• **Creating tokens** — "create a token called Carbon Credit"\n• **HCS messages** — "submit to topic 0.0.123: transaction data"\n• **Staking** — "show my rewards"\n• **Hedera questions** — ask me anything',
+        "I'm the AI assistant built into hedera-ui-kit. I can help with:\n\n• **Sending HBAR** — \"send 5 HBAR to 0.0.98\"\n• **Creating tokens** — \"create a token called Carbon Credit\"\n• **HCS messages** — \"submit to topic 0.0.123: event data\"\n• **Staking** — \"show my rewards\"\n• **Hedera questions** — ask me anything",
     };
   }
 
   return {
     message:
-      'Got it. In demo mode I can simulate operations: sending HBAR, creating tokens, writing to HCS. Try "send 5 HBAR" or "create a token".',
+      'Got it. In demo mode I can simulate: sending HBAR, creating tokens, HCS messages, and staking. Try "send 5 HBAR" or "create a token".',
   };
 }
 
