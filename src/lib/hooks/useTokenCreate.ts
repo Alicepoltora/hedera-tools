@@ -50,11 +50,6 @@ export function useTokenCreate(): UseTokenCreateResult {
 
   const createToken = useCallback(
     async (params: TokenCreateParams): Promise<string | null> => {
-      if (!isConnected || !accountId) {
-        setError('Wallet not connected');
-        return null;
-      }
-
       setLoading(true);
       setError(null);
 
@@ -68,6 +63,12 @@ export function useTokenCreate(): UseTokenCreateResult {
       }
 
       // ── Real mode ──
+      if (!isConnected || !accountId) {
+        setError('Wallet not connected');
+        setLoading(false);
+        return null;
+      }
+
       try {
         if (!signer) throw new Error('Wallet signer not available');
 
