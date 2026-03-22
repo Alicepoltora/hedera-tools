@@ -305,7 +305,7 @@ function MyDapp() {
 
 function ComponentsSection() {
   const [hbarVal, setHbarVal] = useState(1234.5678);
-  const [txId, setTxId] = useState<string | null>('0.0.12345@1710000000.000000000');
+  const [txId, setTxId] = useState<string | null>(null);
 
   return (
     <div className="space-y-6">
