@@ -252,7 +252,6 @@ export function AIChat({
     useAIAgent({ apiEndpoint });
 
   const [input, setInput] = useState('');
-  const [showQuickActions, setShowQuickActions] = useState(true);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -265,7 +264,6 @@ export function AIChat({
     const text = input.trim();
     if (!text || loading || executing) return;
     setInput('');
-    setShowQuickActions(false);
     await sendMessage(text);
   };
 
@@ -330,7 +328,7 @@ export function AIChat({
       </div>
 
       {/* Quick action chips */}
-      {showQuickActions && messages.length <= 1 && (
+      {(
         <div className="px-4 pb-2 flex flex-wrap gap-1.5">
           {QUICK_ACTIONS.map((qa) => (
             <button
