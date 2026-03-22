@@ -73,13 +73,13 @@ function getDemoResponse(text: string, balance: number | null): { message: strin
 
   if (lower.includes('баланс') || lower.includes('balance') || lower.includes('сколько')) {
     return {
-      message: `На вашем кошельке **${balance?.toFixed(2) ?? '1234.56'} HBAR** (~$${((balance ?? 1234.56) * 0.004).toFixed(2)} USD). Хотите что-то сделать с этими средствами?`,
+      message: `Your wallet holds **${balance?.toFixed(2) ?? '1234.56'} HBAR** (~$${((balance ?? 1234.56) * 0.004).toFixed(2)} USD). Would you like to do something with these funds?`,
     };
   }
 
   if (lower.includes('отправ') || lower.includes('send') || lower.includes('transfer') || lower.includes('перевод')) {
     return {
-      message: 'Я готов отправить HBAR. Подтвердите транзакцию:',
+      message: 'Ready to send HBAR. Please confirm the transaction:',
       action: {
         type: 'transfer_hbar',
         params: { to: '0.0.98', amount: 5 },
@@ -91,7 +91,7 @@ function getDemoResponse(text: string, balance: number | null): { message: strin
 
   if (lower.includes('создай') || lower.includes('create') || lower.includes('token') || lower.includes('токен')) {
     return {
-      message: 'Создаю новый токен. Подтвердите:',
+      message: 'Creating a new token. Please confirm:',
       action: {
         type: 'create_token',
         params: { name: 'Demo Token', symbol: 'DMT', type: 'FUNGIBLE', initialSupply: 1000, decimals: 2 },
@@ -103,7 +103,7 @@ function getDemoResponse(text: string, balance: number | null): { message: strin
 
   if (lower.includes('nft') || lower.includes('коллекц')) {
     return {
-      message: 'Создаю NFT коллекцию. Подтвердите:',
+      message: 'Creating NFT collection. Please confirm:',
       action: {
         type: 'create_token',
         params: { name: 'Demo Collection', symbol: 'DEMO', type: 'NFT', maxSupply: 100 },
@@ -115,7 +115,7 @@ function getDemoResponse(text: string, balance: number | null): { message: strin
 
   if (lower.includes('hcs') || lower.includes('сообщен') || lower.includes('message') || lower.includes('топик')) {
     return {
-      message: 'Отправляю сообщение в HCS топик. Подтвердите:',
+      message: 'Submitting message to HCS topic. Please confirm:',
       action: {
         type: 'submit_hcs_message',
         params: { topicId: '0.0.9999999', message: text },
@@ -128,20 +128,20 @@ function getDemoResponse(text: string, balance: number | null): { message: strin
   if (lower.includes('стейк') || lower.includes('staking') || lower.includes('награда') || lower.includes('reward')) {
     return {
       message:
-        'Ваш аккаунт стейкает на **Node 3**. Ожидаемая награда: **0.42 HBAR**. APR сети сейчас ~6.5%. Для изменения ноды или вывода наград нужно подписать транзакцию через кошелёк.',
+        'Your account is staking on **Node 3**. Expected reward: **0.42 HBAR**. Current network APR ~6.5%. To change the node or claim rewards, you need to sign a transaction via your wallet.',
     };
   }
 
   if (lower.includes('hedera') || lower.includes('что') || lower.includes('what') || lower.includes('как') || lower.includes('help') || lower.includes('помог')) {
     return {
       message:
-        'Я AI-ассистент встроенный в hedera-ui-kit. Могу помочь с:\n\n• **Отправкой HBAR** — "отправь 5 HBAR на 0.0.98"\n• **Созданием токенов** — "создай токен Carbon Credit"\n• **HCS сообщениями** — "запиши в топик 0.0.123 данные о транзакции"\n• **Стейкингом** — "покажи мои награды"\n• **Вопросами о Hedera** — спрашивай что угодно',
+        'I\'m the AI assistant built into hedera-ui-kit. I can help with:\n\n• **Sending HBAR** — "send 5 HBAR to 0.0.98"\n• **Creating tokens** — "create a token called Carbon Credit"\n• **HCS messages** — "submit to topic 0.0.123: transaction data"\n• **Staking** — "show my rewards"\n• **Hedera questions** — ask me anything',
     };
   }
 
   return {
     message:
-      'Понял вас. В demo режиме я могу симулировать операции: отправку HBAR, создание токенов, запись в HCS. Попробуйте написать "отправь 5 HBAR" или "создай токен".',
+      'Got it. In demo mode I can simulate operations: sending HBAR, creating tokens, writing to HCS. Try "send 5 HBAR" or "create a token".',
   };
 }
 
@@ -299,10 +299,10 @@ export function useAIAgent(options: UseAIAgentOptions = {}): UseAIAgentResult {
 
         // Add follow-up confirmation message
         const followUp = txId
-          ? `✅ Готово! TX ID: \`${txId}\``
+          ? `✅ Done! TX ID: \`${txId}\``
           : tokenId
-          ? `✅ Токен создан: \`${tokenId}\``
-          : '⚠️ Транзакция не вернула результат.';
+          ? `✅ Token created: \`${tokenId}\``
+          : '⚠️ Transaction returned no result.';
 
         addMessage({ role: 'assistant', content: followUp });
       } catch (err) {
@@ -315,7 +315,7 @@ export function useAIAgent(options: UseAIAgentOptions = {}): UseAIAgentResult {
               : m
           )
         );
-        addMessage({ role: 'assistant', content: `❌ Ошибка: ${errMsg}` });
+        addMessage({ role: 'assistant', content: `❌ Error: ${errMsg}` });
       } finally {
         setExecuting(false);
       }
@@ -329,14 +329,14 @@ export function useAIAgent(options: UseAIAgentOptions = {}): UseAIAgentResult {
         m.id === messageId ? { ...m, action: undefined } : m
       )
     );
-    addMessage({ role: 'assistant', content: 'Действие отменено.' });
+    addMessage({ role: 'assistant', content: 'Action cancelled.' });
   }, [addMessage]);
 
   const clearChat = useCallback(() => {
     setMessages([{
       id: 'welcome',
       role: 'assistant',
-      content: 'Чат очищен. Чем могу помочь?',
+      content: 'Chat cleared. How can I help?',
       timestamp: new Date(),
     }]);
     setError(null);
