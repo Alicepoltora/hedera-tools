@@ -49,9 +49,12 @@ export function useContractRead<T = unknown>(
     if (!contractEvmAddress || !encodedCallData) return null;
 
     if (demoMode) {
-      // Return a plausible demo hex result
+      setLoading(true);
+      await new Promise((r) => setTimeout(r, 1000));
+      // Return a plausible demo hex result (10000 in uint256)
       const demo = '0x0000000000000000000000000000000000000000000000000000000000002710' as unknown as T;
       setData(demo);
+      setLoading(false);
       return demo;
     }
 
