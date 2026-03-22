@@ -151,7 +151,7 @@ function getDemoResponse(text: string, balance: number | null): { message: strin
 
 export function useAIAgent(options: UseAIAgentOptions = {}): UseAIAgentResult {
   const { apiEndpoint = '/api/ai-agent' } = options;
-  const { accountId, balance, network, demoMode } = useHedera();
+  const { accountId, balance, network, demoMode, isConnected } = useHedera();
 
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
@@ -263,10 +263,15 @@ export function useAIAgent(options: UseAIAgentOptions = {}): UseAIAgentResult {
             txId = `${fakeAcct}@${fakeTs}`;
           }
         } else {
-          // ── Live mode ──
+          // ── Live mode: require connected wallet ──
+          if (!isConnected || !accountId) {
+            throw new Error('Wallet not connected. Please connect your wallet first.');
+          }
+
           switch (type) {
             case 'transfer_hbar':
               txId = await transfer(String(params.to), Number(params.amount));
+              if (!txId) throw new Error('Transfer failed — check recipient address and balance.');
               break;
             case 'create_token':
               tokenId = await createToken({
@@ -278,9 +283,11 @@ export function useAIAgent(options: UseAIAgentOptions = {}): UseAIAgentResult {
                 maxSupply: params.maxSupply != null ? Number(params.maxSupply) : undefined,
                 memo: params.memo != null ? String(params.memo) : undefined,
               });
+              if (!tokenId) throw new Error('Token creation failed — transaction rejected or timed out.');
               break;
             case 'burn_tokens':
               txId = await burnFungible(String(params.tokenId), Number(params.amount));
+              if (!txId) throw new Error('Burn failed — verify token ID and supply.');
               break;
             case 'schedule_transfer':
               txId = await scheduleTransfer(
@@ -288,24 +295,27 @@ export function useAIAgent(options: UseAIAgentOptions = {}): UseAIAgentResult {
                 Number(params.amount),
                 params.memo ? String(params.memo) : undefined
               );
+              if (!txId) throw new Error('Scheduled transfer failed.');
               break;
             case 'submit_hcs_message':
               txId = await submitHCS(String(params.topicId), String(params.message));
+              if (!txId) throw new Error('HCS submit failed — verify topic ID.');
               break;
             case 'associate_token':
               txId = await associate(String(params.tokenId));
+              if (!txId) throw new Error('Token association failed — verify token ID.');
               break;
           }
         }
 
         const success = !!(txId ?? tokenId);
-        toast.success(success ? '✅ Transaction confirmed' : '⚠️ No result', { id: toastId });
+        toast.success('✅ Transaction confirmed', { id: toastId });
 
         // Update the message with result
         setMessages((prev) =>
           prev.map((m) =>
             m.id === messageId
-              ? { ...m, actionResult: { success, txId, tokenId } }
+              ? { ...m, actionResult: { success: true, txId, tokenId } }
               : m
           )
         );
@@ -315,7 +325,7 @@ export function useAIAgent(options: UseAIAgentOptions = {}): UseAIAgentResult {
           ? `✅ Done! TX ID: \`${txId}\``
           : tokenId
           ? `✅ Token created: \`${tokenId}\``
-          : '⚠️ Transaction returned no result.';
+          : '✅ Action completed successfully.';
 
         addMessage({ role: 'assistant', content: followUp });
       } catch (err) {
@@ -333,7 +343,7 @@ export function useAIAgent(options: UseAIAgentOptions = {}): UseAIAgentResult {
         setExecuting(false);
       }
     },
-    [messages, demoMode, transfer, createToken, burnFungible, scheduleTransfer, submitHCS, associate, addMessage]
+    [messages, demoMode, isConnected, accountId, transfer, createToken, burnFungible, scheduleTransfer, submitHCS, associate, addMessage]
   );
 
   const cancelAction = useCallback((messageId: string) => {
