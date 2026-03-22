@@ -32,11 +32,6 @@ export function useTransfer(): TransferResult {
 
   const transfer = useCallback(
     async (toAccountId: string, amountHbar: number): Promise<string | null> => {
-      if (!isConnected || !accountId) {
-        setError('Wallet not connected. Call connect() first.');
-        return null;
-      }
-
       setLoading(true);
       setError(null);
 
@@ -50,6 +45,12 @@ export function useTransfer(): TransferResult {
       }
 
       // ── Real mode ──
+      if (!isConnected || !accountId) {
+        setError('Wallet not connected. Call connect() first.');
+        setLoading(false);
+        return null;
+      }
+
       try {
         if (!signer) throw new Error('Wallet signer not available');
 
