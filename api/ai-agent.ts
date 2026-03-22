@@ -1,8 +1,4 @@
-import {
-  GoogleGenerativeAI,
-  type FunctionDeclaration,
-  SchemaType,
-} from '@google/generative-ai';
+import Groq from 'groq-sdk';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -14,7 +10,6 @@ export interface AgentContext {
   balance: number | null;
   network: string;
   demoMode: boolean;
-  recentTxCount?: number;
 }
 
 export interface AgentMessage {
@@ -29,11 +24,10 @@ export interface AgentAction {
     | 'burn_tokens'
     | 'schedule_transfer'
     | 'submit_hcs_message'
-    | 'associate_token'
-    | 'explain_portfolio';
+    | 'associate_token';
   params: Record<string, unknown>;
   confirmationRequired: boolean;
-  description: string; // human-readable preview
+  description: string;
 }
 
 export interface AgentResponse {
@@ -42,109 +36,108 @@ export interface AgentResponse {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Function declarations — Gemini tool format
+// Tools — OpenAI-compatible format (Groq uses the same)
 // ─────────────────────────────────────────────────────────────────────────────
 
-const FUNCTION_DECLARATIONS: FunctionDeclaration[] = [
+const TOOLS: Groq.Chat.CompletionCreateParams['tools'] = [
   {
-    name: 'transfer_hbar',
-    description:
-      'Transfer HBAR from the connected wallet to another Hedera account. Use when user wants to send, pay, or transfer HBAR.',
-    parameters: {
-      type: SchemaType.OBJECT,
-      properties: {
-        to: {
-          type: SchemaType.STRING,
-          description: 'Destination Hedera account ID in format 0.0.XXXXX',
+    type: 'function',
+    function: {
+      name: 'transfer_hbar',
+      description:
+        'Transfer HBAR from the connected wallet to another Hedera account.',
+      parameters: {
+        type: 'object',
+        properties: {
+          to: { type: 'string', description: 'Destination account ID, e.g. 0.0.12345' },
+          amount: { type: 'number', description: 'Amount of HBAR to transfer' },
         },
-        amount: {
-          type: SchemaType.NUMBER,
-          description: 'Amount of HBAR to transfer (whole units, e.g. 5 for 5 HBAR)',
-        },
+        required: ['to', 'amount'],
       },
-      required: ['to', 'amount'],
     },
   },
   {
-    name: 'create_token',
-    description:
-      'Create a new HTS token — either fungible (like ERC-20) or NFT collection (like ERC-721). Use when user wants to create, launch, or deploy a token.',
-    parameters: {
-      type: SchemaType.OBJECT,
-      properties: {
-        name: { type: SchemaType.STRING, description: 'Full token name, e.g. "Carbon Credit"' },
-        symbol: { type: SchemaType.STRING, description: 'Token symbol/ticker, e.g. "CCR"' },
-        type: {
-          type: SchemaType.STRING,
-          description: 'FUNGIBLE for regular tokens, NFT for non-fungible collections',
+    type: 'function',
+    function: {
+      name: 'create_token',
+      description:
+        'Create a new HTS token — fungible (like ERC-20) or NFT collection (like ERC-721).',
+      parameters: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', description: 'Full token name, e.g. "Carbon Credit"' },
+          symbol: { type: 'string', description: 'Token ticker, e.g. "CCR"' },
+          type: { type: 'string', description: 'FUNGIBLE or NFT' },
+          initialSupply: { type: 'number', description: 'Initial supply (fungible only)' },
+          decimals: { type: 'number', description: 'Decimal places (fungible only)' },
+          maxSupply: { type: 'number', description: 'Max supply cap (optional)' },
+          memo: { type: 'string', description: 'On-chain memo (optional)' },
         },
-        initialSupply: {
-          type: SchemaType.NUMBER,
-          description: 'Initial token supply (fungible only). Defaults to 0.',
-        },
-        decimals: {
-          type: SchemaType.NUMBER,
-          description: 'Decimal places (fungible only). Defaults to 2.',
-        },
-        maxSupply: {
-          type: SchemaType.NUMBER,
-          description: 'Maximum supply cap. If omitted, supply is infinite.',
-        },
-        memo: { type: SchemaType.STRING, description: 'Optional on-chain memo' },
+        required: ['name', 'symbol', 'type'],
       },
-      required: ['name', 'symbol', 'type'],
     },
   },
   {
-    name: 'burn_tokens',
-    description:
-      'Burn (permanently destroy) fungible HTS tokens. Use when user wants to burn, destroy, or reduce supply.',
-    parameters: {
-      type: SchemaType.OBJECT,
-      properties: {
-        tokenId: { type: SchemaType.STRING, description: 'Token ID to burn from, e.g. 0.0.1234567' },
-        amount: { type: SchemaType.NUMBER, description: 'Number of tokens to burn (whole units)' },
+    type: 'function',
+    function: {
+      name: 'burn_tokens',
+      description: 'Burn (permanently destroy) fungible HTS tokens.',
+      parameters: {
+        type: 'object',
+        properties: {
+          tokenId: { type: 'string', description: 'Token ID, e.g. 0.0.1234567' },
+          amount: { type: 'number', description: 'Number of tokens to burn' },
+        },
+        required: ['tokenId', 'amount'],
       },
-      required: ['tokenId', 'amount'],
     },
   },
   {
-    name: 'schedule_transfer',
-    description:
-      'Create a scheduled HBAR transfer that requires multiple signatures. Use for deferred payments, multi-sig, or team payments.',
-    parameters: {
-      type: SchemaType.OBJECT,
-      properties: {
-        to: { type: SchemaType.STRING, description: 'Destination account ID' },
-        amount: { type: SchemaType.NUMBER, description: 'Amount of HBAR' },
-        memo: { type: SchemaType.STRING, description: 'Description of the payment purpose' },
+    type: 'function',
+    function: {
+      name: 'schedule_transfer',
+      description:
+        'Create a scheduled HBAR transfer requiring multiple signatures.',
+      parameters: {
+        type: 'object',
+        properties: {
+          to: { type: 'string', description: 'Destination account ID' },
+          amount: { type: 'number', description: 'Amount of HBAR' },
+          memo: { type: 'string', description: 'Payment description (optional)' },
+        },
+        required: ['to', 'amount'],
       },
-      required: ['to', 'amount'],
     },
   },
   {
-    name: 'submit_hcs_message',
-    description:
-      'Submit a message to a Hedera Consensus Service topic. Use when user wants to log, record, or publish data on-chain.',
-    parameters: {
-      type: SchemaType.OBJECT,
-      properties: {
-        topicId: { type: SchemaType.STRING, description: 'HCS topic ID, e.g. 0.0.9999999' },
-        message: { type: SchemaType.STRING, description: 'Message content to submit' },
+    type: 'function',
+    function: {
+      name: 'submit_hcs_message',
+      description:
+        'Submit a message to a Hedera Consensus Service topic.',
+      parameters: {
+        type: 'object',
+        properties: {
+          topicId: { type: 'string', description: 'HCS topic ID, e.g. 0.0.9999999' },
+          message: { type: 'string', description: 'Message content to submit' },
+        },
+        required: ['topicId', 'message'],
       },
-      required: ['topicId', 'message'],
     },
   },
   {
-    name: 'associate_token',
-    description:
-      'Associate a token with the connected account so it can receive that token. Required before receiving any HTS token.',
-    parameters: {
-      type: SchemaType.OBJECT,
-      properties: {
-        tokenId: { type: SchemaType.STRING, description: 'Token ID to associate, e.g. 0.0.1234567' },
+    type: 'function',
+    function: {
+      name: 'associate_token',
+      description:
+        'Associate a token with the connected account so it can receive that token.',
+      parameters: {
+        type: 'object',
+        properties: {
+          tokenId: { type: 'string', description: 'Token ID to associate, e.g. 0.0.1234567' },
+        },
+        required: ['tokenId'],
       },
-      required: ['tokenId'],
     },
   },
 ];
@@ -163,28 +156,25 @@ function buildSystemPrompt(ctx: AgentContext): string {
 - Mode: ${ctx.demoMode ? 'Demo (simulated)' : 'Live'}
 
 ## Your capabilities
-You can help users perform blockchain operations by using the available functions. Each function maps directly to a hook in the hedera-ui-kit library:
-- transfer_hbar → useTransfer()
-- create_token → useTokenCreate()
-- burn_tokens → useTokenBurn()
-- schedule_transfer → useScheduledTransaction()
-- submit_hcs_message → useHCS()
-- associate_token → useTokenAssociate()
+You can help users perform blockchain operations using these functions:
+- transfer_hbar → send HBAR to another account
+- create_token → create a new HTS fungible token or NFT collection
+- burn_tokens → destroy tokens and reduce supply
+- schedule_transfer → create a multi-sig scheduled payment
+- submit_hcs_message → log data on-chain via Hedera Consensus Service
+- associate_token → link a token to the user's account
 
 ## Rules
-1. Always confirm before executing transactions — never call a function without warning the user what will happen
-2. When a user asks about their balance or account, answer from the context above (no function call needed)
-3. If the user's intent is ambiguous, ask a clarifying question before calling a function
-4. For amounts, always confirm units (HBAR vs tokens vs USD)
-5. If wallet is not connected (accountId is null), tell the user to connect their wallet first
-6. Be concise — max 2-3 sentences for simple questions, use bullet points for complex answers
-7. You can explain Hedera concepts (HTS, HCS, staking, fees) when asked
-8. When you call a function, the UI will show a confirmation card with a "Confirm" button — tell the user to confirm
-9. Respond in the same language the user writes in`;
+1. Always describe what will happen BEFORE calling a function — the UI will show a confirmation card
+2. Answer balance/account questions from context above (no function call needed)
+3. Ask for clarification if intent is ambiguous
+4. If wallet is not connected, tell the user to connect their wallet first
+5. Be concise — 1-3 sentences for simple answers
+6. Respond in the same language the user writes in`;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Action descriptions for UI
+// Action description for UI card
 // ─────────────────────────────────────────────────────────────────────────────
 
 function buildActionDescription(
@@ -218,9 +208,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) {
-    return res.status(500).json({ error: 'GEMINI_API_KEY not configured' });
+    return res.status(500).json({ error: 'GROQ_API_KEY not configured' });
   }
 
   const { messages, context } = req.body as {
@@ -233,69 +223,45 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const genAI = new GoogleGenerativeAI(apiKey);
+    const groq = new Groq({ apiKey });
 
-    const model = genAI.getGenerativeModel({
-      model: 'gemini-1.5-flash',
-      systemInstruction: buildSystemPrompt(context),
-      tools: [{ functionDeclarations: FUNCTION_DECLARATIONS }],
+    const groqMessages: Groq.Chat.ChatCompletionMessageParam[] = [
+      { role: 'system', content: buildSystemPrompt(context) },
+      ...messages.map((m) => ({
+        role: m.role as 'user' | 'assistant',
+        content: m.content,
+      })),
+    ];
+
+    const completion = await groq.chat.completions.create({
+      model: 'llama-3.3-70b-versatile',
+      messages: groqMessages,
+      tools: TOOLS,
+      tool_choice: 'auto',
+      max_tokens: 1024,
     });
 
-    // Convert message history: assistant → model, skip the last user message
-    // (it will be passed as the new prompt)
-    const lastMessage = messages[messages.length - 1];
-    const historyMessages = messages.slice(0, -1);
+    const choice = completion.choices[0];
+    const responseMessage = choice.message;
 
-    // Gemini requires:
-    // 1. History must start with role 'user' (not 'model')
-    // 2. Roles must alternate user/model — no consecutive same-role messages
-    // 3. 'system' role doesn't exist in Gemini history (handled via systemInstruction)
-    const rawHistory = historyMessages
-      .filter((m) => m.role === 'user' || m.role === 'assistant')
-      .map((m) => ({
-        role: m.role === 'assistant' ? 'model' : 'user',
-        parts: [{ text: m.content }],
-      }));
-
-    // Drop leading model messages so history always starts with 'user'
-    while (rawHistory.length > 0 && rawHistory[0].role === 'model') {
-      rawHistory.shift();
-    }
-
-    // Ensure strict alternation: if two consecutive same-role messages appear,
-    // merge them into one (Gemini rejects non-alternating turns)
-    const history: { role: string; parts: { text: string }[] }[] = [];
-    for (const turn of rawHistory) {
-      if (history.length > 0 && history[history.length - 1].role === turn.role) {
-        // Merge with previous turn
-        history[history.length - 1].parts.push(...turn.parts);
-      } else {
-        history.push(turn);
-      }
-    }
-
-    const chat = model.startChat({ history });
-
-    const result = await chat.sendMessage(lastMessage.content);
-    const response = result.response;
-
-    // Extract text and function call from response parts
-    let message = '';
+    let message = responseMessage.content ?? '';
     let action: AgentAction | undefined;
 
-    for (const part of response.candidates?.[0]?.content?.parts ?? []) {
-      if ('text' in part && part.text) {
-        message += part.text;
-      }
-      if ('functionCall' in part && part.functionCall) {
-        const fnName = part.functionCall.name as AgentAction['type'];
-        const params = (part.functionCall.args ?? {}) as Record<string, unknown>;
-        action = {
-          type: fnName,
-          params,
-          confirmationRequired: true,
-          description: buildActionDescription(fnName, params),
-        };
+    if (responseMessage.tool_calls?.length) {
+      const toolCall = responseMessage.tool_calls[0];
+      const fnName = toolCall.function.name as AgentAction['type'];
+      const params = JSON.parse(toolCall.function.arguments ?? '{}') as Record<string, unknown>;
+
+      action = {
+        type: fnName,
+        params,
+        confirmationRequired: true,
+        description: buildActionDescription(fnName, params),
+      };
+
+      // If no text, generate a short confirmation prompt
+      if (!message) {
+        message = `I'll ${buildActionDescription(fnName, params)}. Please confirm below.`;
       }
     }
 
