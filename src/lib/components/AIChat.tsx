@@ -275,7 +275,6 @@ export function AIChat({
   };
 
   const handleQuickAction = (text: string) => {
-    setShowQuickActions(false);
     void sendMessage(text);
   };
 
