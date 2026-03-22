@@ -65,11 +65,6 @@ export function useScheduledTransaction(): UseScheduledTransactionResult {
 
   const scheduleTransfer = useCallback(
     async (toAccountId: string, amountHbar: number, memo = ''): Promise<string | null> => {
-      if (!isConnected || !accountId) {
-        setError('Wallet not connected');
-        return null;
-      }
-
       setLoading(true);
       setError(null);
 
@@ -90,6 +85,12 @@ export function useScheduledTransaction(): UseScheduledTransactionResult {
         });
         setLoading(false);
         return fakeId;
+      }
+
+      if (!isConnected || !accountId) {
+        setError('Wallet not connected');
+        setLoading(false);
+        return null;
       }
 
       try {
@@ -124,8 +125,6 @@ export function useScheduledTransaction(): UseScheduledTransactionResult {
 
   const signScheduled = useCallback(
     async (sid: string): Promise<string | null> => {
-      if (!isConnected) { setError('Wallet not connected'); return null; }
-
       setLoading(true);
       setError(null);
 
@@ -133,6 +132,12 @@ export function useScheduledTransaction(): UseScheduledTransactionResult {
         await new Promise((r) => setTimeout(r, DEMO_DELAY));
         setLoading(false);
         return `0.0.${Date.now()}@${Math.floor(Date.now() / 1000)}`;
+      }
+
+      if (!isConnected) {
+        setError('Wallet not connected');
+        setLoading(false);
+        return null;
       }
 
       try {
