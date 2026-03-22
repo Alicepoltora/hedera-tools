@@ -252,37 +252,50 @@ export function useAIAgent(options: UseAIAgentOptions = {}): UseAIAgentResult {
         let txId: string | null = null;
         let tokenId: string | null = null;
 
-        switch (type) {
-          case 'transfer_hbar':
-            txId = await transfer(String(params.to), Number(params.amount));
-            break;
-          case 'create_token':
-            tokenId = await createToken({
-              name: String(params.name),
-              symbol: String(params.symbol),
-              type: (params.type as 'FUNGIBLE' | 'NFT'),
-              initialSupply: params.initialSupply != null ? Number(params.initialSupply) : undefined,
-              decimals: params.decimals != null ? Number(params.decimals) : undefined,
-              maxSupply: params.maxSupply != null ? Number(params.maxSupply) : undefined,
-              memo: params.memo != null ? String(params.memo) : undefined,
-            });
-            break;
-          case 'burn_tokens':
-            txId = await burnFungible(String(params.tokenId), Number(params.amount));
-            break;
-          case 'schedule_transfer':
-            txId = await scheduleTransfer(
-              String(params.to),
-              Number(params.amount),
-              params.memo ? String(params.memo) : undefined
-            );
-            break;
-          case 'submit_hcs_message':
-            txId = await submitHCS(String(params.topicId), String(params.message));
-            break;
-          case 'associate_token':
-            txId = await associate(String(params.tokenId));
-            break;
+        // ── Demo mode: simulate results without a real wallet ──
+        if (demoMode) {
+          await new Promise((r) => setTimeout(r, 1500));
+          const fakeTs = Math.floor(Date.now() / 1000);
+          const fakeAcct = `0.0.${Math.floor(Math.random() * 9000000) + 1000000}`;
+          if (type === 'create_token') {
+            tokenId = `0.0.${Math.floor(Math.random() * 9000000) + 1000000}`;
+          } else {
+            txId = `${fakeAcct}@${fakeTs}`;
+          }
+        } else {
+          // ── Live mode ──
+          switch (type) {
+            case 'transfer_hbar':
+              txId = await transfer(String(params.to), Number(params.amount));
+              break;
+            case 'create_token':
+              tokenId = await createToken({
+                name: String(params.name),
+                symbol: String(params.symbol),
+                type: (params.type as 'FUNGIBLE' | 'NFT'),
+                initialSupply: params.initialSupply != null ? Number(params.initialSupply) : undefined,
+                decimals: params.decimals != null ? Number(params.decimals) : undefined,
+                maxSupply: params.maxSupply != null ? Number(params.maxSupply) : undefined,
+                memo: params.memo != null ? String(params.memo) : undefined,
+              });
+              break;
+            case 'burn_tokens':
+              txId = await burnFungible(String(params.tokenId), Number(params.amount));
+              break;
+            case 'schedule_transfer':
+              txId = await scheduleTransfer(
+                String(params.to),
+                Number(params.amount),
+                params.memo ? String(params.memo) : undefined
+              );
+              break;
+            case 'submit_hcs_message':
+              txId = await submitHCS(String(params.topicId), String(params.message));
+              break;
+            case 'associate_token':
+              txId = await associate(String(params.tokenId));
+              break;
+          }
         }
 
         const success = !!(txId ?? tokenId);
@@ -320,7 +333,7 @@ export function useAIAgent(options: UseAIAgentOptions = {}): UseAIAgentResult {
         setExecuting(false);
       }
     },
-    [messages, transfer, createToken, burnFungible, scheduleTransfer, submitHCS, associate, addMessage]
+    [messages, demoMode, transfer, createToken, burnFungible, scheduleTransfer, submitHCS, associate, addMessage]
   );
 
   const cancelAction = useCallback((messageId: string) => {
