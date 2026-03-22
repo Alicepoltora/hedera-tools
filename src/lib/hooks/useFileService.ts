@@ -54,8 +54,6 @@ export function useFileService(): UseFileServiceResult {
 
   const createFile = useCallback(
     async (contents: string, memo = ''): Promise<string | null> => {
-      if (!isConnected) { setError('Wallet not connected'); return null; }
-
       setLoading(true);
       setError(null);
 
@@ -67,6 +65,8 @@ export function useFileService(): UseFileServiceResult {
         setLoading(false);
         return fakeId;
       }
+
+      if (!isConnected) { setError('Wallet not connected'); setLoading(false); return null; }
 
       try {
         if (!signer) throw new Error('Wallet signer not available');
@@ -116,11 +116,12 @@ export function useFileService(): UseFileServiceResult {
 
   const appendFile = useCallback(
     async (fid: string, contents: string): Promise<string | null> => {
-      if (!isConnected) { setError('Wallet not connected'); return null; }
       if (demoMode) {
         await new Promise((r) => setTimeout(r, DEMO_DELAY));
         return `0.0.${Date.now()}@${Math.floor(Date.now() / 1000)}`;
       }
+
+      if (!isConnected) { setError('Wallet not connected'); return null; }
 
       setLoading(true);
       setError(null);
