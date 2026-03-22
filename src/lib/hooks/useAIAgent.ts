@@ -159,8 +159,8 @@ export function useAIAgent(options: UseAIAgentOptions = {}): UseAIAgentResult {
       role: 'assistant',
       content:
         demoMode
-          ? 'Привет! Я AI-агент hedera-ui-kit. Работаю в demo-режиме. Спросите про баланс, попросите отправить HBAR или создать токен — покажу как это работает.'
-          : 'Привет! Я AI-агент hedera-ui-kit. Могу выполнять операции на Hedera голосовыми командами. Что хотите сделать?',
+          ? "Hey! I'm the hedera-ui-kit AI agent. Running in demo mode — ask about your balance, try sending HBAR or creating a token to see how it works."
+          : "Hey! I'm the hedera-ui-kit AI agent. I can execute Hedera operations from natural language. What would you like to do?",
       timestamp: new Date(),
     },
   ]);
