@@ -114,3 +114,17 @@ export type { TopicMessageFeedProps } from './components/TopicMessageFeed';
 
 export { ContractCallButton } from './components/ContractCallButton';
 export type { ContractCallButtonProps } from './components/ContractCallButton';
+
+// ── AI Agent ──────────────────────────────────────────────────────────────────
+export { useAIAgent } from './hooks/useAIAgent';
+export type {
+  UseAIAgentResult,
+  UseAIAgentOptions,
+  ChatMessage,
+  AIAction,
+  AIActionType,
+  MessageRole,
+} from './hooks/useAIAgent';
+
+export { AIChat } from './components/AIChat';
+export type { AIChatProps } from './components/AIChat';
