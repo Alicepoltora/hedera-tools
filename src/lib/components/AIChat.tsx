@@ -186,7 +186,7 @@ function MessageBubble({
               ? 'bg-emerald-950/30 text-emerald-400'
               : 'bg-red-950/30 text-red-400'
           }`}>
-            {msg.actionResult.success ? '✅ Executed' : `❌ ${msg.actionResult.error}`}
+            {msg.actionResult.success ? '✅ Executed' : `❌ ${msg.actionResult.error ?? 'Transaction failed'}`}
             {msg.actionResult.txId && (
               <span className="font-mono ml-1 opacity-70">
                 {msg.actionResult.txId.slice(0, 24)}…
