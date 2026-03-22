@@ -1429,7 +1429,7 @@ function AIAgentSection() {
 />`}
       >
         <AIChat
-          placeholder="Попробуй: 'Мой баланс', 'отправь 5 HBAR', 'создай токен Carbon Credit'…"
+          placeholder="Try: 'My balance', 'send 5 HBAR', 'create token Carbon Credit'…"
           maxHeight={380}
         />
       </DemoCard>
