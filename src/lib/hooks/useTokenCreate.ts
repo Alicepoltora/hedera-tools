@@ -3,7 +3,6 @@ import {
   TokenCreateTransaction,
   TokenType,
   TokenSupplyType,
-  Client,
   TransactionId,
   AccountId,
 } from '@hiero-ledger/sdk';
@@ -40,7 +39,7 @@ const DEMO_DELAY = 1400;
  * await createToken({ name: 'My Token', symbol: 'MTK', type: 'FUNGIBLE', initialSupply: 1000 });
  */
 export function useTokenCreate(): UseTokenCreateResult {
-  const { signer, accountId, isConnected, demoMode, network } = useHedera();
+  const { signer, accountId, isConnected, demoMode } = useHedera();
   const [tokenId, setTokenId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -77,11 +76,11 @@ export function useTokenCreate(): UseTokenCreateResult {
         const isNFT = params.type === 'NFT';
 
         // DAppSigner.populateTransaction() only sets transactionId — it never
-        // sets nodeAccountIds. Calling tx.freeze() without them throws:
-        //   "nodeAccountId must be set or client must be provided with freezeWith"
-        // Fix: use freezeWith(client) so nodeAccountIds are populated, then
-        // executeWithSigner sends the frozen tx to the wallet via WalletConnect.
-        const client = network === 'mainnet' ? Client.forMainnet() : Client.forTestnet();
+        // sets nodeAccountIds. freezeWith(client) sets nodeAccountIds but
+        // Client.forX() has no operator so it can't auto-generate a txId.
+        // Solution: set both manually, then call freeze() directly.
+        // Nodes 0.0.3–0.0.7 are valid consensus nodes on both mainnet & testnet.
+        const nodeIds = ['0.0.3', '0.0.4', '0.0.5', '0.0.6', '0.0.7'];
 
         // No adminKey / supplyKey — any randomly-generated key must also sign
         // the creation transaction, which WalletConnect cannot provide.
@@ -99,11 +98,12 @@ export function useTokenCreate(): UseTokenCreateResult {
           tx.setMaxSupply(params.maxSupply);
         }
 
-        // Client.forMainnet/Testnet has no operator, so it can't auto-generate
-        // a transactionId. Set it manually from the connected account.
+        // Set both txId and nodeAccountIds explicitly so freeze() succeeds
+        // without needing a client with an operator.
         tx.setTransactionId(TransactionId.generate(AccountId.fromString(accountId)));
+        tx.setNodeAccountIds(nodeIds.map((id) => AccountId.fromString(id)));
 
-        const frozenTx = tx.freezeWith(client);
+        const frozenTx = tx.freeze();
         const response = await frozenTx.executeWithSigner(signer);
         const receipt = await response.getReceiptWithSigner(signer);
         const id = receipt.tokenId?.toString() ?? null;
@@ -118,7 +118,7 @@ export function useTokenCreate(): UseTokenCreateResult {
         setLoading(false);
       }
     },
-    [signer, accountId, isConnected, demoMode, network]
+    [signer, accountId, isConnected, demoMode]
   );
 
   return { tokenId, loading, error, createToken, reset };
