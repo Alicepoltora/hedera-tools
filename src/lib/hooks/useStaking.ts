@@ -1,4 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
+import {
+  AccountUpdateTransaction,
+  AccountId,
+  TransactionId,
+} from '@hiero-ledger/sdk';
+import { transactionToBase64String } from '@hashgraph/hedera-wallet-connect';
 import { useHedera } from './useHedera';
 
 export interface StakingInfo {
@@ -24,6 +30,10 @@ export interface UseStakingResult {
   loading: boolean;
   error: string | null;
   refetch: () => Promise<void>;
+  /** Stake to a network node by nodeId */
+  stake: (nodeId: number) => Promise<string | null>;
+  /** Remove staking from the current node */
+  unstake: () => Promise<string | null>;
 }
 
 const MIRROR_NODES: Record<string, string> = {
@@ -31,6 +41,9 @@ const MIRROR_NODES: Record<string, string> = {
   mainnet: 'https://mainnet-public.mirrornode.hedera.com',
   previewnet: 'https://previewnet.mirrornode.hedera.com',
 };
+
+const NODE_IDS = ['0.0.3', '0.0.4', '0.0.5', '0.0.6', '0.0.7'];
+const DEMO_DELAY = 1200;
 
 const DEMO_STAKING: StakingInfo = {
   stakedNodeId: 3,
@@ -50,11 +63,19 @@ const DEMO_NODES: NetworkNode[] = [
  * Hook for Hedera staking info — pending rewards, staked node, and network nodes.
  *
  * @example
- * const { stakingInfo, networkNodes } = useStaking();
- * console.log(stakingInfo?.pendingReward);
+ * const { stakingInfo, networkNodes, stake, unstake } = useStaking();
+ * await stake(3);    // stake to node 3
+ * await unstake();   // remove staking
  */
 export function useStaking(accountId?: string): UseStakingResult {
-  const { accountId: connectedId, demoMode, network } = useHedera();
+  const {
+    accountId: connectedId,
+    signer,
+    connector,
+    isConnected,
+    demoMode,
+    network,
+  } = useHedera();
   const target = accountId ?? connectedId;
 
   const [stakingInfo, setStakingInfo] = useState<StakingInfo | null>(null);
@@ -113,5 +134,102 @@ export function useStaking(accountId?: string): UseStakingResult {
 
   useEffect(() => { void refetch(); }, [refetch]);
 
-  return { stakingInfo, networkNodes, loading, error, refetch };
+  // ── stake: AccountUpdateTransaction with stakedNodeId ──────────────────────
+  const stake = useCallback(
+    async (nodeId: number): Promise<string | null> => {
+      setLoading(true);
+      setError(null);
+
+      if (demoMode) {
+        await new Promise((r) => setTimeout(r, DEMO_DELAY));
+        setStakingInfo((prev) => prev ? { ...prev, stakedNodeId: nodeId } : prev);
+        setLoading(false);
+        return `demo-stake-${nodeId}`;
+      }
+
+      if (!isConnected || !connectedId) {
+        setError('Wallet not connected');
+        setLoading(false);
+        return null;
+      }
+
+      try {
+        if (!signer) throw new Error('Wallet signer not available');
+        if (!connector) throw new Error('WalletConnect connector not available');
+
+        const tx = new AccountUpdateTransaction()
+          .setAccountId(AccountId.fromString(connectedId))
+          .setStakedNodeId(nodeId)
+          .setTransactionId(TransactionId.generate(AccountId.fromString(connectedId)))
+          .setNodeAccountIds(NODE_IDS.map((id) => AccountId.fromString(id)));
+
+        const frozenTx = tx.freeze();
+        const txIdStr = frozenTx.transactionId!.toString();
+
+        const fullySigned = await signer.signTransaction(frozenTx);
+        await connector.executeTransaction({
+          signedTransaction: [transactionToBase64String(fullySigned)],
+        });
+
+        // Optimistically update local state
+        setStakingInfo((prev) => prev ? { ...prev, stakedNodeId: nodeId } : prev);
+        return txIdStr;
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Stake failed');
+        return null;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [signer, connector, connectedId, isConnected, demoMode]
+  );
+
+  // ── unstake: clear stakedNodeId by setting it to -1 ───────────────────────
+  const unstake = useCallback(async (): Promise<string | null> => {
+    setLoading(true);
+    setError(null);
+
+    if (demoMode) {
+      await new Promise((r) => setTimeout(r, DEMO_DELAY));
+      setStakingInfo((prev) => prev ? { ...prev, stakedNodeId: null } : prev);
+      setLoading(false);
+      return 'demo-unstake';
+    }
+
+    if (!isConnected || !connectedId) {
+      setError('Wallet not connected');
+      setLoading(false);
+      return null;
+    }
+
+    try {
+      if (!signer) throw new Error('Wallet signer not available');
+      if (!connector) throw new Error('WalletConnect connector not available');
+
+      // Setting stakedNodeId to -1 clears staking on Hedera
+      const tx = new AccountUpdateTransaction()
+        .setAccountId(AccountId.fromString(connectedId))
+        .setStakedNodeId(-1)
+        .setTransactionId(TransactionId.generate(AccountId.fromString(connectedId)))
+        .setNodeAccountIds(NODE_IDS.map((id) => AccountId.fromString(id)));
+
+      const frozenTx = tx.freeze();
+      const txIdStr = frozenTx.transactionId!.toString();
+
+      const fullySigned = await signer.signTransaction(frozenTx);
+      await connector.executeTransaction({
+        signedTransaction: [transactionToBase64String(fullySigned)],
+      });
+
+      setStakingInfo((prev) => prev ? { ...prev, stakedNodeId: null } : prev);
+      return txIdStr;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unstake failed');
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  }, [signer, connector, connectedId, isConnected, demoMode]);
+
+  return { stakingInfo, networkNodes, loading, error, refetch, stake, unstake };
 }
