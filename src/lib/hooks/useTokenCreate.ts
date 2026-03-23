@@ -5,7 +5,6 @@ import {
   TokenSupplyType,
   TransactionId,
   AccountId,
-  Client,
   PublicKey,
 } from '@hiero-ledger/sdk';
 import { useHedera } from './useHedera';
@@ -40,9 +39,60 @@ const MIRROR_NODES: Record<string, string> = {
 };
 
 /**
+ * Converts SDK transaction ID format to Mirror Node format.
+ * "0.0.123@1234567890.123456789" → "0.0.123-1234567890-123456789"
+ */
+function toMirrorTxId(txId: string): string {
+  const [account, ts] = txId.split('@');
+  return `${account}-${ts.replace('.', '-')}`;
+}
+
+/**
+ * Polls the Mirror Node until the transaction is confirmed.
+ * Returns the created entity ID (token ID) on SUCCESS, or throws on failure.
+ * Uses Mirror Node because gRPC (used by Client.getReceipt) is not available
+ * in browser environments without a proxy.
+ */
+async function waitForMirrorReceipt(
+  txId: string,
+  network: string,
+  maxWaitMs = 30_000,
+  pollIntervalMs = 3_000
+): Promise<string | null> {
+  const base = MIRROR_NODES[network] ?? MIRROR_NODES.testnet;
+  const mirrorId = toMirrorTxId(txId);
+  const deadline = Date.now() + maxWaitMs;
+
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, pollIntervalMs));
+    try {
+      const res = await fetch(`${base}/api/v1/transactions/${mirrorId}`);
+      if (!res.ok) continue; // not yet indexed — keep polling
+      const data = await res.json();
+      const tx = data.transactions?.[0];
+      if (!tx) continue;
+      if (tx.result === 'SUCCESS') {
+        return (tx.entity_id as string) ?? null;
+      }
+      if (tx.result && tx.result !== 'UNKNOWN') {
+        throw new Error(`Transaction failed: ${tx.result as string}`);
+      }
+      // result is UNKNOWN or missing — keep polling
+    } catch (err) {
+      // Re-throw non-fetch errors (e.g. "Transaction failed: …")
+      if (err instanceof Error && err.message.startsWith('Transaction failed')) {
+        throw err;
+      }
+    }
+  }
+  throw new Error('Transaction confirmation timed out. Check your wallet for the status.');
+}
+
+/**
  * Fetches the account's public key from the Mirror Node.
- * Used to set the supply key on NFT token creation (Hedera requires a supply
- * key on NFTs; using the user's own key lets them sign future mints via wallet).
+ * Used to set the supply key on NFT token creation — Hedera requires a
+ * supplyKey on NFTs. Using the user's own key means executeWithSigner
+ * can also sign future mint transactions.
  */
 async function fetchAccountPublicKey(
   accountId: string,
@@ -106,26 +156,26 @@ export function useTokenCreate(): UseTokenCreateResult {
         const isNFT = params.type === 'NFT';
         const net = network ?? 'testnet';
 
-        // For NFTs, Hedera requires a supplyKey — without it the token can never
-        // be minted and creation is rejected at precheck (TOKEN_HAS_NO_SUPPLY_KEY).
-        // We use the user's own public key so executeWithSigner(signer) can sign
-        // future mint transactions too. It does NOT need to sign the create tx.
+        // NFTs require a supplyKey — Hedera rejects creation without one at
+        // precheck (TOKEN_HAS_NO_SUPPLY_KEY). We use the user's own public key
+        // so that executeWithSigner(signer) can also authorize future mints.
+        // The supplyKey does NOT need to sign the creation transaction itself.
         let supplyKey: PublicKey | null = null;
         if (isNFT) {
           supplyKey = await fetchAccountPublicKey(accountId, net);
           if (!supplyKey) {
             throw new Error(
-              'Could not fetch your account public key to set as NFT supply key. ' +
-              'Please try again.'
+              'Could not fetch your account public key for NFT supply key. Please try again.'
             );
           }
         }
 
-        // Nodes 0.0.3–0.0.7 are valid consensus nodes on both mainnet & testnet.
+        // Set nodeAccountIds and txId manually so freeze() works without a
+        // client operator. Nodes 0.0.3–0.0.7 exist on both mainnet & testnet.
         const nodeIds = ['0.0.3', '0.0.4', '0.0.5', '0.0.6', '0.0.7'];
 
-        // No adminKey — any randomly-generated key must also sign the creation
-        // transaction, which WalletConnect cannot provide.
+        // No adminKey — a randomly-generated key would need to co-sign the
+        // creation transaction, which WalletConnect cannot provide.
         const tx = new TokenCreateTransaction()
           .setTokenName(params.name)
           .setTokenSymbol(params.symbol)
@@ -136,30 +186,21 @@ export function useTokenCreate(): UseTokenCreateResult {
           .setSupplyType(params.maxSupply ? TokenSupplyType.Finite : TokenSupplyType.Infinite)
           .setTokenMemo(params.memo ?? '');
 
-        if (params.maxSupply) {
-          tx.setMaxSupply(params.maxSupply);
-        }
+        if (params.maxSupply) tx.setMaxSupply(params.maxSupply);
+        if (supplyKey) tx.setSupplyKey(supplyKey);
 
-        // supplyKey = user's wallet key → wallet signs mints automatically
-        if (supplyKey) {
-          tx.setSupplyKey(supplyKey);
-        }
-
-        // Set both txId and nodeAccountIds explicitly so freeze() succeeds
-        // without needing a client with an operator.
         tx.setTransactionId(TransactionId.generate(AccountId.fromString(accountId)));
         tx.setNodeAccountIds(nodeIds.map((id) => AccountId.fromString(id)));
 
         const frozenTx = tx.freeze();
         const response = await frozenTx.executeWithSigner(signer);
 
-        // getReceiptWithSigner(signer) is broken in DAppSigner — it tries to
-        // route TransactionReceiptQuery through WalletConnect which throws:
-        //   "(BUG) Query.fromBytes() not implemented for type getByKey"
-        // Receipt queries are unsigned/free — use plain Client.forX() instead.
-        const receiptClient = net === 'mainnet' ? Client.forMainnet() : Client.forTestnet();
-        const receipt = await response.getReceipt(receiptClient);
-        const id = receipt.tokenId?.toString() ?? null;
+        // getReceiptWithSigner(signer) is broken in DAppSigner (WalletConnect
+        // throws "(BUG) Query.fromBytes() not implemented for type getByKey").
+        // getReceipt(client) requires gRPC which is unavailable in browsers.
+        // → Poll the Mirror Node REST API instead (standard browser pattern).
+        const txIdStr = response.transactionId.toString();
+        const id = await waitForMirrorReceipt(txIdStr, net);
 
         setTokenId(id);
         return id;
