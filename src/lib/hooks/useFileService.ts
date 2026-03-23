@@ -2,8 +2,10 @@ import { useCallback, useState } from 'react';
 import {
   FileCreateTransaction,
   FileAppendTransaction,
-  FileContentsQuery,
+  TransactionId,
+  AccountId,
 } from '@hiero-ledger/sdk';
+import { transactionToBase64String } from '@hashgraph/hedera-wallet-connect';
 import { useHedera } from './useHedera';
 
 export interface FileInfo {
@@ -29,6 +31,38 @@ export interface UseFileServiceResult {
 
 const DEMO_DELAY = 1100;
 const MAX_FILE_CHUNK = 4096; // bytes — HFS limit per transaction
+const NODE_IDS = ['0.0.3', '0.0.4', '0.0.5', '0.0.6', '0.0.7'];
+
+const MIRROR_NODES: Record<string, string> = {
+  testnet: 'https://testnet.mirrornode.hedera.com',
+  mainnet: 'https://mainnet-public.mirrornode.hedera.com',
+  previewnet: 'https://previewnet.mirrornode.hedera.com',
+};
+
+// '0.0.123@1234567890.123456789' -> '0.0.123-1234567890-123456789'
+function toMirrorTxId(txIdStr: string): string {
+  return txIdStr.replace('@', '-').replace(/\.(\d+)$/, '-$1');
+}
+
+// Poll Mirror Node for entity_id (fileId) created by a transaction
+async function waitForEntityId(txIdStr: string, mirrorUrl: string): Promise<string | null> {
+  const mirrorId = toMirrorTxId(txIdStr);
+  for (let i = 0; i < 20; i++) {
+    await new Promise((r) => setTimeout(r, 3000));
+    try {
+      const res = await fetch(`${mirrorUrl}/api/v1/transactions/${mirrorId}`);
+      if (!res.ok) continue;
+      const data = await res.json();
+      const txs: Array<{ result: string; entity_id?: string }> = data.transactions ?? [];
+      if (txs.length > 0 && txs[0].result === 'SUCCESS') {
+        return txs[0].entity_id ?? null;
+      }
+    } catch {
+      // retry
+    }
+  }
+  return null;
+}
 
 /**
  * Hook for Hedera File Service (HFS) — create, append, and read on-chain files.
@@ -40,7 +74,7 @@ const MAX_FILE_CHUNK = 4096; // bytes — HFS limit per transaction
  * const content = await readFile(id);
  */
 export function useFileService(): UseFileServiceResult {
-  const { signer, isConnected, demoMode } = useHedera();
+  const { signer, connector, accountId, isConnected, demoMode, network } = useHedera();
   const [fileId, setFileId] = useState<string | null>(null);
   const [fileInfo, setFileInfo] = useState<FileInfo | null>(null);
   const [loading, setLoading] = useState(false);
@@ -66,37 +100,56 @@ export function useFileService(): UseFileServiceResult {
         return fakeId;
       }
 
-      if (!isConnected) { setError('Wallet not connected'); setLoading(false); return null; }
+      if (!isConnected || !accountId) {
+        setError('Wallet not connected');
+        setLoading(false);
+        return null;
+      }
 
       try {
         if (!signer) throw new Error('Wallet signer not available');
+        if (!connector) throw new Error('WalletConnect connector not available');
 
+        const mirrorUrl = MIRROR_NODES[network] ?? MIRROR_NODES.testnet;
         const encoder = new TextEncoder();
         const bytes = encoder.encode(contents);
-
-        // HFS: first chunk goes in FileCreateTransaction
         const firstChunk = bytes.slice(0, MAX_FILE_CHUNK);
 
-        const createTx = await new FileCreateTransaction()
+        // Step 1: create the file (first chunk)
+        const createTx = new FileCreateTransaction()
           .setContents(firstChunk)
           .setFileMemo(memo)
-          .freezeWithSigner(signer);
+          .setTransactionId(TransactionId.generate(AccountId.fromString(accountId)))
+          .setNodeAccountIds(NODE_IDS.map((id) => AccountId.fromString(id)));
 
-        const createResp = await createTx.executeWithSigner(signer);
-        const receipt = await createResp.getReceiptWithSigner(signer);
-        const id = receipt.fileId?.toString();
-        if (!id) throw new Error('No file ID in receipt');
+        const frozenCreate = createTx.freeze();
+        const createTxIdStr = frozenCreate.transactionId!.toString();
 
-        // Append remaining chunks
+        const signedCreate = await signer.signTransaction(frozenCreate);
+        await connector.executeTransaction({
+          signedTransaction: [transactionToBase64String(signedCreate)],
+        });
+
+        // Get fileId from Mirror Node entity_id
+        const id = await waitForEntityId(createTxIdStr, mirrorUrl);
+        if (!id) throw new Error('File creation timed out — no file ID returned');
+
+        // Step 2: append remaining chunks if needed
         if (bytes.length > MAX_FILE_CHUNK) {
           let offset = MAX_FILE_CHUNK;
           while (offset < bytes.length) {
             const chunk = bytes.slice(offset, offset + MAX_FILE_CHUNK);
-            const appendTx = await new FileAppendTransaction()
+            const appendTx = new FileAppendTransaction()
               .setFileId(id)
               .setContents(chunk)
-              .freezeWithSigner(signer);
-            await (await appendTx.executeWithSigner(signer)).getReceiptWithSigner(signer);
+              .setTransactionId(TransactionId.generate(AccountId.fromString(accountId)))
+              .setNodeAccountIds(NODE_IDS.map((nodeId) => AccountId.fromString(nodeId)));
+
+            const frozenAppend = appendTx.freeze();
+            const signedAppend = await signer.signTransaction(frozenAppend);
+            await connector.executeTransaction({
+              signedTransaction: [transactionToBase64String(signedAppend)],
+            });
             offset += MAX_FILE_CHUNK;
           }
         }
@@ -111,7 +164,7 @@ export function useFileService(): UseFileServiceResult {
         setLoading(false);
       }
     },
-    [signer, isConnected, demoMode]
+    [signer, connector, accountId, isConnected, demoMode, network]
   );
 
   const appendFile = useCallback(
@@ -121,13 +174,18 @@ export function useFileService(): UseFileServiceResult {
         return `0.0.${Date.now()}@${Math.floor(Date.now() / 1000)}`;
       }
 
-      if (!isConnected) { setError('Wallet not connected'); return null; }
+      if (!isConnected || !accountId) {
+        setError('Wallet not connected');
+        return null;
+      }
 
       setLoading(true);
       setError(null);
 
       try {
         if (!signer) throw new Error('Wallet signer not available');
+        if (!connector) throw new Error('WalletConnect connector not available');
+
         const encoder = new TextEncoder();
         const bytes = encoder.encode(contents);
         let offset = 0;
@@ -135,12 +193,19 @@ export function useFileService(): UseFileServiceResult {
 
         while (offset < bytes.length) {
           const chunk = bytes.slice(offset, offset + MAX_FILE_CHUNK);
-          const tx = await new FileAppendTransaction()
+          const tx = new FileAppendTransaction()
             .setFileId(fid)
             .setContents(chunk)
-            .freezeWithSigner(signer);
-          const resp = await tx.executeWithSigner(signer);
-          lastTxId = resp.transactionId.toString();
+            .setTransactionId(TransactionId.generate(AccountId.fromString(accountId)))
+            .setNodeAccountIds(NODE_IDS.map((id) => AccountId.fromString(id)));
+
+          const frozenTx = tx.freeze();
+          lastTxId = frozenTx.transactionId!.toString();
+
+          const signed = await signer.signTransaction(frozenTx);
+          await connector.executeTransaction({
+            signedTransaction: [transactionToBase64String(signed)],
+          });
           offset += MAX_FILE_CHUNK;
         }
 
@@ -152,7 +217,7 @@ export function useFileService(): UseFileServiceResult {
         setLoading(false);
       }
     },
-    [signer, isConnected, demoMode]
+    [signer, connector, accountId, isConnected, demoMode]
   );
 
   const readFile = useCallback(
@@ -163,28 +228,17 @@ export function useFileService(): UseFileServiceResult {
         return demo;
       }
 
-      if (!signer) { setError('Wallet signer required to read files'); return null; }
-
-      setLoading(true);
-      setError(null);
-
-      try {
-        const contents = await new FileContentsQuery()
-          .setFileId(fid)
-          .executeWithSigner(signer);
-
-        const decoder = new TextDecoder();
-        const text = decoder.decode(contents);
-        setFileInfo({ fileId: fid, size: text.length, contents: text, memo: '' });
-        return text;
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to read file');
-        return null;
-      } finally {
-        setLoading(false);
+      // HFS file contents are not available via Mirror Node REST API.
+      // Reading requires gRPC which is not supported in browsers.
+      // As a workaround, return the cached contents if available (set during createFile).
+      if (fileInfo?.fileId === fid && fileInfo.contents) {
+        return fileInfo.contents;
       }
+
+      setError('File contents reading requires gRPC (not supported in browser). Contents are available immediately after createFile().');
+      return null;
     },
-    [signer, demoMode]
+    [demoMode, fileInfo]
   );
 
   return { fileId, fileInfo, loading, error, createFile, appendFile, readFile, reset };
