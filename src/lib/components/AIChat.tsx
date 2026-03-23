@@ -133,7 +133,10 @@ function MessageBubble({
 
   // Parse **bold** and `code` markdown
   const renderContent = (text: string) => {
-    const parts = text.split(/(\*\*[^*]+\*\*|`[^`]+`|\n)/g);
+    // Strip internal step-tracking sentinels — they're in content for state
+    // detection but must not appear in the rendered chat bubble.
+    const clean = text.replace(/\n?__AWAITING_\w+__/g, '');
+    const parts = clean.split(/(\*\*[^*]+\*\*|`[^`]+`|\n)/g);
     return parts.map((part, i) => {
       if (part.startsWith('**') && part.endsWith('**')) {
         return <strong key={i} className="font-semibold text-white">{part.slice(2, -2)}</strong>;
