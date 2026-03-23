@@ -50,6 +50,11 @@ export interface HederaProviderProps {
     url?: string;
     icons?: string[];
   };
+  /**
+   * Called whenever the user switches networks via setNetwork().
+   * Use this to lift network state up and re-key the provider if needed.
+   */
+  onNetworkChange?: (network: HederaNetwork) => void;
 }
 
 // ─────────────────────────────────────────────
@@ -114,8 +119,15 @@ export function HederaProvider({
   walletConnectProjectId,
   demoMode = false,
   appMetadata = {},
+  onNetworkChange,
 }: HederaProviderProps) {
-  const [network, setNetwork] = useState<HederaNetwork>(initialNetwork);
+  const [network, setNetworkState] = useState<HederaNetwork>(initialNetwork);
+
+  const setNetwork = useCallback((n: HederaNetwork) => {
+    setNetworkState(n);
+    onNetworkChange?.(n);
+  }, [onNetworkChange]);
+
   const [accountId, setAccountId] = useState<string | null>(null);
   const [balance, setBalance] = useState<number | null>(null);
   const [isConnected, setIsConnected] = useState(false);
@@ -143,8 +155,20 @@ export function HederaProvider({
   );
 
   // ── Initialise WalletConnect DApp Connector ──
+  // Re-runs whenever the network changes, creating a fresh connector for the
+  // new chain while safely discarding the previous one.
   useEffect(() => {
     if (demoMode) return;
+
+    // Reset all connection state immediately so the UI never shows stale data
+    // from the previous network while the new connector is initialising.
+    setIsConnected(false);
+    setAccountId(null);
+    setBalance(null);
+    setSigner(null);
+    setConnector(null);
+
+    let isCurrent = true; // guard against stale async callbacks after cleanup
 
     const dAppMetadata = {
       name: appMetadata.name ?? 'Hedera UI Kit',
@@ -163,9 +187,10 @@ export function HederaProvider({
     );
 
     void dAppConnector.init({ logger: 'error' }).then(() => {
+      if (!isCurrent) return; // network changed again before init finished
       setConnector(dAppConnector);
 
-      // Restore existing session if available
+      // Restore existing session if available for this network
       const signers = dAppConnector.signers;
       if (signers.length > 0) {
         const s = signers[0];
@@ -177,9 +202,14 @@ export function HederaProvider({
       }
     });
 
-    // Do NOT call disconnectAll() here — it would destroy the WalletConnect
-    // session stored in localStorage and force re-auth on every page reload.
-    return () => {};
+    return () => {
+      // Mark this effect instance as stale so the async init callback is ignored.
+      // We intentionally do NOT call disconnectAll() — that would destroy the
+      // WalletConnect session in localStorage and force the user to re-scan the
+      // QR code after every network switch.
+      isCurrent = false;
+      setConnector(null);
+    };
   }, [network, walletConnectProjectId, demoMode, ledgerId, fetchBalance,
       appMetadata.description, appMetadata.icons, appMetadata.name, appMetadata.url]);
 
