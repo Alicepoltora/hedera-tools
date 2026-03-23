@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, Component, type ReactNode, type ErrorInfo } from 'react';
 import {
   HederaProvider,
   ConnectButton,
@@ -34,6 +34,43 @@ import {
   useFileService,
   type TokenMintResult,
 } from '../lib';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Error Boundary
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface EBState { error: Error | null }
+class ErrorBoundary extends Component<{ children: ReactNode }, EBState> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { error: null };
+  }
+  static getDerivedStateFromError(error: Error) { return { error }; }
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error('[ErrorBoundary]', error, info);
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="p-6 rounded-2xl bg-red-950/40 border border-red-700/40 space-y-3">
+          <p className="text-red-400 font-semibold text-sm">⚠️ Component crashed</p>
+          <pre className="text-xs text-red-300 bg-slate-950 rounded-xl p-4 overflow-x-auto whitespace-pre-wrap">
+            {this.state.error.message}
+            {'\n\n'}
+            {this.state.error.stack}
+          </pre>
+          <button
+            onClick={() => this.setState({ error: null })}
+            className="px-3 py-1.5 rounded-lg bg-red-900/50 text-red-300 text-xs hover:bg-red-900 transition-colors"
+          >
+            Try again
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -1556,19 +1593,19 @@ function DemoShell() {
             </div>
           </div>
 
-          <div>
-          {active === 'overview'      && <OverviewSection />}
-          {active === 'components'    && <ComponentsSection />}
-          {active === 'wallet'        && <WalletSection />}
-          {active === 'hts'           && <HTSSection />}
-          {active === 'nft'           && <NFTSection />}
-          {active === 'hcs'           && <HCSSection />}
-          {active === 'staking'       && <StakingSection />}
-          {active === 'contracts'     && <ContractsSection />}
-          {active === 'transactions'  && <TransactionsSection />}
-          {active === 'utilities'     && <UtilitiesSection />}
-          {active === 'ai'            && <AIAgentSection />}
-          </div>
+          <ErrorBoundary key={active}>
+            {active === 'overview'      && <OverviewSection />}
+            {active === 'components'    && <ComponentsSection />}
+            {active === 'wallet'        && <WalletSection />}
+            {active === 'hts'           && <HTSSection />}
+            {active === 'nft'           && <NFTSection />}
+            {active === 'hcs'           && <HCSSection />}
+            {active === 'staking'       && <StakingSection />}
+            {active === 'contracts'     && <ContractsSection />}
+            {active === 'transactions'  && <TransactionsSection />}
+            {active === 'utilities'     && <UtilitiesSection />}
+            {active === 'ai'            && <AIAgentSection />}
+          </ErrorBoundary>
         </div>
       </main>
     </div>
