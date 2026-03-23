@@ -268,7 +268,30 @@ export function useAIAgent(options: UseAIAgentOptions = {}): UseAIAgentResult {
       addMessage({ role: 'user', content: text });
       setLoading(true);
 
-      // Demo mode — no real API call
+      // ── Always handle the send-HBAR multi-step flow locally ──────────────────
+      // This runs regardless of demo/live mode so Groq can never bypass the
+      // collect-amount → collect-address → confirm pattern.
+      const lastAsst = lastAssistantMsg(messages);
+      const lowerText = text.toLowerCase().trim();
+      const inSendFlow =
+        lastAsst.includes('__AWAITING_AMOUNT__') ||
+        lastAsst.includes('__AWAITING_ADDRESS__');
+      const isSendIntent =
+        !inSendFlow &&
+        (lowerText.includes('send') ||
+          lowerText.includes('transfer') ||
+          lowerText.includes('отправить') ||
+          lowerText.includes('перевест'));
+
+      if (inSendFlow || isSendIntent) {
+        await new Promise((r) => setTimeout(r, DEMO_DELAY));
+        const demo = getDemoResponse(text, balance, messages);
+        addMessage({ role: 'assistant', content: demo.message, action: demo.action });
+        setLoading(false);
+        return;
+      }
+
+      // Demo mode — no real API call for all other queries
       if (demoMode || !apiEndpoint) {
         await new Promise((r) => setTimeout(r, DEMO_DELAY));
         const demo = getDemoResponse(text, balance, messages);
