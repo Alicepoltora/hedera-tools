@@ -1683,12 +1683,24 @@ function DemoShell() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function App() {
+  // Lift network state here so switching networks remounts HederaProvider
+  // with a fresh connector — avoids stale chain IDs inside the WalletConnect
+  // session and ensures Mirror Node calls always hit the correct endpoint.
+  const [network, setNetwork] = useState<'testnet' | 'mainnet' | 'previewnet'>('testnet');
+
   return (
     <HederaProvider
-      network="mainnet"
+      key={network}
+      network={network}
       walletConnectProjectId={import.meta.env.VITE_WALLETCONNECT_PROJECT_ID ?? 'demo'}
       demoMode={!import.meta.env.VITE_WALLETCONNECT_PROJECT_ID}
-      appMetadata={{ name: 'hedera-ui-kit Demo', url: 'https://hedera-ui-kit.vercel.app' }}
+      appMetadata={{
+        name: 'hedera-ui-kit Demo',
+        description: 'Open-source React component library for Hedera developers',
+        url: 'https://hederatoolls.xyz',
+        icons: ['https://hederatoolls.xyz/favicon.ico'],
+      }}
+      onNetworkChange={setNetwork}
     >
       <DemoShell />
     </HederaProvider>
