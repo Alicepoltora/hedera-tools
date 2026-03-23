@@ -37,7 +37,7 @@ const DEMO_TOKEN: TokenInfo = {
   maxSupply: 10_000_000,
   decimals: 2,
   treasuryAccountId: '0.0.9999999',
-  memo: 'Hedera Apex 2026 demo token',
+  memo: 'hedera-ui-kit demo token',
   deleted: false,
 };
 
