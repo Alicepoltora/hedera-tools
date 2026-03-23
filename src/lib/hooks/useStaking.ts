@@ -43,21 +43,6 @@ const MIRROR_NODES: Record<string, string> = {
 };
 
 const NODE_IDS = ['0.0.3', '0.0.4', '0.0.5', '0.0.6', '0.0.7'];
-const DEMO_DELAY = 1200;
-
-const DEMO_STAKING: StakingInfo = {
-  stakedNodeId: 3,
-  stakedAccountId: null,
-  pendingReward: 0.42,
-  stakePeriodStart: new Date(Date.now() - 7 * 86400000).toISOString(),
-  declineReward: false,
-};
-
-const DEMO_NODES: NetworkNode[] = [
-  { nodeId: 0, description: 'Hedera Node 0', stake: 5_000_000, minStake: 100, maxStake: 50_000_000, rewardRate: 6.5 },
-  { nodeId: 3, description: 'Hedera Node 3', stake: 4_200_000, minStake: 100, maxStake: 50_000_000, rewardRate: 6.5 },
-  { nodeId: 5, description: 'Hedera Node 5', stake: 3_800_000, minStake: 100, maxStake: 50_000_000, rewardRate: 6.5 },
-];
 
 /**
  * Hook for Hedera staking info — pending rewards, staked node, and network nodes.
@@ -73,7 +58,6 @@ export function useStaking(accountId?: string): UseStakingResult {
     signer,
     connector,
     isConnected,
-    demoMode,
     network,
   } = useHedera();
   const target = accountId ?? connectedId;
@@ -86,34 +70,13 @@ export function useStaking(accountId?: string): UseStakingResult {
   const mirror = MIRROR_NODES[network] ?? MIRROR_NODES.testnet;
 
   const refetch = useCallback(async () => {
-    if (demoMode) {
-      setStakingInfo(DEMO_STAKING);
-      setNetworkNodes(DEMO_NODES);
-      return;
-    }
-    if (!target) return;
-
     setLoading(true);
     setError(null);
 
     try {
-      const [accRes, nodesRes] = await Promise.all([
-        fetch(`${mirror}/api/v1/accounts/${target}`),
-        fetch(`${mirror}/api/v1/network/nodes?limit=25&order=asc`),
-      ]);
-
-      if (!accRes.ok) throw new Error(`Account not found: ${target}`);
-
-      const acc = await accRes.json();
+      // Network nodes are public — always fetch real data, no wallet needed
+      const nodesRes = await fetch(`${mirror}/api/v1/network/nodes?limit=25&order=asc`);
       const nodesData = nodesRes.ok ? await nodesRes.json() : { nodes: [] };
-
-      setStakingInfo({
-        stakedNodeId: acc.staked_node_id ?? null,
-        stakedAccountId: acc.staked_account_id ?? null,
-        pendingReward: (acc.pending_reward ?? 0) / 1e8,
-        stakePeriodStart: acc.stake_period_start ?? null,
-        declineReward: acc.decline_reward ?? false,
-      });
 
       setNetworkNodes(
         (nodesData.nodes ?? []).map((n: Record<string, unknown>) => ({
@@ -125,12 +88,26 @@ export function useStaking(accountId?: string): UseStakingResult {
           rewardRate: Number((n.reward_rate_start as string | number) ?? 0),
         }))
       );
+
+      // Staking info requires a connected account
+      if (target) {
+        const accRes = await fetch(`${mirror}/api/v1/accounts/${target}`);
+        if (!accRes.ok) throw new Error(`Account not found: ${target}`);
+        const acc = await accRes.json();
+        setStakingInfo({
+          stakedNodeId: acc.staked_node_id ?? null,
+          stakedAccountId: acc.staked_account_id ?? null,
+          pendingReward: (acc.pending_reward ?? 0) / 1e8,
+          stakePeriodStart: acc.stake_period_start ?? null,
+          declineReward: acc.decline_reward ?? false,
+        });
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch staking info');
     } finally {
       setLoading(false);
     }
-  }, [target, demoMode, mirror]);
+  }, [target, mirror]);
 
   useEffect(() => { void refetch(); }, [refetch]);
 
@@ -139,13 +116,6 @@ export function useStaking(accountId?: string): UseStakingResult {
     async (nodeId: number): Promise<string | null> => {
       setLoading(true);
       setError(null);
-
-      if (demoMode) {
-        await new Promise((r) => setTimeout(r, DEMO_DELAY));
-        setStakingInfo((prev) => prev ? { ...prev, stakedNodeId: nodeId } : prev);
-        setLoading(false);
-        return `demo-stake-${nodeId}`;
-      }
 
       if (!isConnected || !connectedId) {
         setError('Wallet not connected');
@@ -181,20 +151,13 @@ export function useStaking(accountId?: string): UseStakingResult {
         setLoading(false);
       }
     },
-    [signer, connector, connectedId, isConnected, demoMode]
+    [signer, connector, connectedId, isConnected]
   );
 
   // ── unstake: clear stakedNodeId by setting it to -1 ───────────────────────
   const unstake = useCallback(async (): Promise<string | null> => {
     setLoading(true);
     setError(null);
-
-    if (demoMode) {
-      await new Promise((r) => setTimeout(r, DEMO_DELAY));
-      setStakingInfo((prev) => prev ? { ...prev, stakedNodeId: null } : prev);
-      setLoading(false);
-      return 'demo-unstake';
-    }
 
     if (!isConnected || !connectedId) {
       setError('Wallet not connected');
@@ -229,7 +192,7 @@ export function useStaking(accountId?: string): UseStakingResult {
     } finally {
       setLoading(false);
     }
-  }, [signer, connector, connectedId, isConnected, demoMode]);
+  }, [signer, connector, connectedId, isConnected]);
 
   return { stakingInfo, networkNodes, loading, error, refetch, stake, unstake };
 }
