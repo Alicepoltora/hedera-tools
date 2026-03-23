@@ -5,7 +5,7 @@ import {
   TokenSupplyType,
   TransactionId,
   AccountId,
-  PublicKey,
+  PrivateKey,
 } from '@hiero-ledger/sdk';
 import { useHedera } from './useHedera';
 
@@ -24,6 +24,9 @@ export interface TokenCreateParams {
 
 export interface UseTokenCreateResult {
   tokenId: string | null;
+  /** For NFT tokens: the hex of the generated supply key private key.
+   *  Store this — it is required to mint NFTs on this collection. */
+  supplyKeyHex: string | null;
   loading: boolean;
   error: string | null;
   createToken: (params: TokenCreateParams) => Promise<string | null>;
@@ -39,7 +42,7 @@ const MIRROR_NODES: Record<string, string> = {
 };
 
 /**
- * Converts SDK transaction ID format to Mirror Node format.
+ * Converts SDK transaction ID format to Mirror Node URL format.
  * "0.0.123@1234567890.123456789" → "0.0.123-1234567890-123456789"
  */
 function toMirrorTxId(txId: string): string {
@@ -49,9 +52,8 @@ function toMirrorTxId(txId: string): string {
 
 /**
  * Polls the Mirror Node until the transaction is confirmed.
- * Returns the created entity ID (token ID) on SUCCESS, or throws on failure.
- * Uses Mirror Node because gRPC (used by Client.getReceipt) is not available
- * in browser environments without a proxy.
+ * Returns the created entity ID on SUCCESS, throws on failure/timeout.
+ * Uses Mirror Node because gRPC (Client.getReceipt) is unavailable in browsers.
  */
 async function waitForMirrorReceipt(
   txId: string,
@@ -67,65 +69,41 @@ async function waitForMirrorReceipt(
     await new Promise((r) => setTimeout(r, pollIntervalMs));
     try {
       const res = await fetch(`${base}/api/v1/transactions/${mirrorId}`);
-      if (!res.ok) continue; // not yet indexed — keep polling
+      if (!res.ok) continue;
       const data = await res.json();
       const tx = data.transactions?.[0];
       if (!tx) continue;
-      if (tx.result === 'SUCCESS') {
-        return (tx.entity_id as string) ?? null;
-      }
+      if (tx.result === 'SUCCESS') return (tx.entity_id as string) ?? null;
       if (tx.result && tx.result !== 'UNKNOWN') {
         throw new Error(`Transaction failed: ${tx.result as string}`);
       }
-      // result is UNKNOWN or missing — keep polling
     } catch (err) {
-      // Re-throw non-fetch errors (e.g. "Transaction failed: …")
-      if (err instanceof Error && err.message.startsWith('Transaction failed')) {
-        throw err;
-      }
+      if (err instanceof Error && err.message.startsWith('Transaction failed')) throw err;
     }
   }
   throw new Error('Transaction confirmation timed out. Check your wallet for the status.');
 }
 
 /**
- * Fetches the account's public key from the Mirror Node.
- * Used to set the supply key on NFT token creation — Hedera requires a
- * supplyKey on NFTs. Using the user's own key means executeWithSigner
- * can also sign future mint transactions.
- */
-async function fetchAccountPublicKey(
-  accountId: string,
-  network: string
-): Promise<PublicKey | null> {
-  try {
-    const base = MIRROR_NODES[network] ?? MIRROR_NODES.testnet;
-    const res = await fetch(`${base}/api/v1/accounts/${accountId}`);
-    if (!res.ok) return null;
-    const data = await res.json();
-    const keyHex: string | undefined = data?.key?.key;
-    if (!keyHex) return null;
-    return PublicKey.fromString(keyHex);
-  } catch {
-    return null;
-  }
-}
-
-/**
  * Hook for creating new HTS tokens — both Fungible and NFT collections.
  *
+ * For NFT tokens a fresh supply key is generated locally. The private key hex
+ * is returned in `supplyKeyHex` — store it, it is required to mint NFTs later.
+ *
  * @example
- * const { createToken, tokenId, loading } = useTokenCreate();
+ * const { createToken, tokenId, supplyKeyHex, loading } = useTokenCreate();
  * await createToken({ name: 'My Token', symbol: 'MTK', type: 'FUNGIBLE', initialSupply: 1000 });
  */
 export function useTokenCreate(): UseTokenCreateResult {
   const { signer, accountId, isConnected, demoMode, network } = useHedera();
   const [tokenId, setTokenId] = useState<string | null>(null);
+  const [supplyKeyHex, setSupplyKeyHex] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const reset = useCallback(() => {
     setTokenId(null);
+    setSupplyKeyHex(null);
     setError(null);
   }, []);
 
@@ -133,12 +111,16 @@ export function useTokenCreate(): UseTokenCreateResult {
     async (params: TokenCreateParams): Promise<string | null> => {
       setLoading(true);
       setError(null);
+      setSupplyKeyHex(null);
 
       // ── Demo mode ──
       if (demoMode) {
         await new Promise((r) => setTimeout(r, DEMO_DELAY));
         const fakeId = `0.0.${Math.floor(Math.random() * 9000000) + 1000000}`;
         setTokenId(fakeId);
+        if (params.type === 'NFT') {
+          setSupplyKeyHex('demo-supply-key-not-real');
+        }
         setLoading(false);
         return fakeId;
       }
@@ -156,26 +138,25 @@ export function useTokenCreate(): UseTokenCreateResult {
         const isNFT = params.type === 'NFT';
         const net = network ?? 'testnet';
 
-        // NFTs require a supplyKey — Hedera rejects creation without one at
-        // precheck (TOKEN_HAS_NO_SUPPLY_KEY). We use the user's own public key
-        // so that executeWithSigner(signer) can also authorize future mints.
-        // The supplyKey does NOT need to sign the creation transaction itself.
-        let supplyKey: PublicKey | null = null;
+        // NFTs require a supplyKey — Hedera rejects creation at precheck without
+        // one (TOKEN_HAS_NO_SUPPLY_KEY).
+        //
+        // Strategy: generate a fresh PrivateKey locally, use its public key as
+        // the supplyKey, then sign the frozen transaction with it BEFORE handing
+        // to executeWithSigner. The wallet only needs to sign as treasury.
+        // The private key hex is surfaced in `supplyKeyHex` so the user can
+        // store it for future mint operations.
+        let supplyPrivateKey: PrivateKey | null = null;
         if (isNFT) {
-          supplyKey = await fetchAccountPublicKey(accountId, net);
-          if (!supplyKey) {
-            throw new Error(
-              'Could not fetch your account public key for NFT supply key. Please try again.'
-            );
-          }
+          supplyPrivateKey = PrivateKey.generateECDSA();
         }
 
-        // Set nodeAccountIds and txId manually so freeze() works without a
-        // client operator. Nodes 0.0.3–0.0.7 exist on both mainnet & testnet.
+        // Set nodeAccountIds and txId manually — DAppSigner.populateTransaction
+        // only sets txId, never nodeAccountIds; Client.forX() has no operator.
         const nodeIds = ['0.0.3', '0.0.4', '0.0.5', '0.0.6', '0.0.7'];
 
-        // No adminKey — a randomly-generated key would need to co-sign the
-        // creation transaction, which WalletConnect cannot provide.
+        // No adminKey — a randomly-generated admin key must co-sign creation,
+        // which WalletConnect cannot provide.
         const tx = new TokenCreateTransaction()
           .setTokenName(params.name)
           .setTokenSymbol(params.symbol)
@@ -187,22 +168,38 @@ export function useTokenCreate(): UseTokenCreateResult {
           .setTokenMemo(params.memo ?? '');
 
         if (params.maxSupply) tx.setMaxSupply(params.maxSupply);
-        if (supplyKey) tx.setSupplyKey(supplyKey);
+
+        // Set the generated public key as the supply key on the token.
+        if (supplyPrivateKey) {
+          tx.setSupplyKey(supplyPrivateKey.publicKey);
+        }
 
         tx.setTransactionId(TransactionId.generate(AccountId.fromString(accountId)));
         tx.setNodeAccountIds(nodeIds.map((id) => AccountId.fromString(id)));
 
         const frozenTx = tx.freeze();
-        const response = await frozenTx.executeWithSigner(signer);
 
-        // getReceiptWithSigner(signer) is broken in DAppSigner (WalletConnect
-        // throws "(BUG) Query.fromBytes() not implemented for type getByKey").
-        // getReceipt(client) requires gRPC which is unavailable in browsers.
-        // → Poll the Mirror Node REST API instead (standard browser pattern).
+        // Sign with the supply key locally (tx.sign returns Promise<Transaction>).
+        // Hedera requires the supply key's signature on TokenCreateTransaction
+        // when the supply key is set. The wallet then adds the treasury signature.
+        const signedTx = supplyPrivateKey
+          ? await frozenTx.sign(supplyPrivateKey)
+          : frozenTx;
+
+        // Wallet signs as treasury account, then submits to the network.
+        const response = await signedTx.executeWithSigner(signer);
+
+        // getReceiptWithSigner is broken in DAppSigner (WalletConnect throws
+        // "(BUG) Query.fromBytes() not implemented for type getByKey").
+        // getReceipt(client) needs gRPC unavailable in browsers.
+        // → Poll Mirror Node REST API instead.
         const txIdStr = response.transactionId.toString();
         const id = await waitForMirrorReceipt(txIdStr, net);
 
         setTokenId(id);
+        if (supplyPrivateKey) {
+          setSupplyKeyHex(supplyPrivateKey.toStringRaw());
+        }
         return id;
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Token creation failed';
@@ -215,5 +212,5 @@ export function useTokenCreate(): UseTokenCreateResult {
     [signer, accountId, isConnected, demoMode, network]
   );
 
-  return { tokenId, loading, error, createToken, reset };
+  return { tokenId, supplyKeyHex, loading, error, createToken, reset };
 }
