@@ -81,12 +81,21 @@ export function useExchangeRate(): UseExchangeRateResult {
       const curr = data.current_rate;
       const next = data.next_rate;
 
-      const parseRate = (r: Record<string, number>) => ({
-        centEquiv: r.cent_equiv,
-        hbarEquiv: r.hbar_equiv,
-        usdPerHbar: r.cent_equiv / r.hbar_equiv / 100,
-        expirationTime: r.expiration_time,
-      });
+      // Mirror Node may return snake_case or camelCase depending on version
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const parseRate = (r: Record<string, any>) => {
+        const hbar: number = r.hbar_equiv ?? r.hbarEquiv ?? 1;
+        const cent: number = r.cent_equiv ?? r.centEquiv ?? 0;
+        const exp: number  = r.expiration_time ?? r.expirationTime ?? 0;
+        return {
+          centEquiv: cent,
+          hbarEquiv: hbar,
+          usdPerHbar: hbar > 0 ? cent / hbar / 100 : 0,
+          expirationTime: exp,
+        };
+      };
+
+      if (!curr) throw new Error('Exchange rate response missing current_rate');
 
       setRate({
         ...parseRate(curr),
