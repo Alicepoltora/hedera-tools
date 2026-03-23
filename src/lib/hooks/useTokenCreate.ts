@@ -3,6 +3,7 @@ import {
   TokenCreateTransaction,
   TokenType,
   TokenSupplyType,
+  Client,
 } from '@hiero-ledger/sdk';
 import { useHedera } from './useHedera';
 
@@ -37,7 +38,7 @@ const DEMO_DELAY = 1400;
  * await createToken({ name: 'My Token', symbol: 'MTK', type: 'FUNGIBLE', initialSupply: 1000 });
  */
 export function useTokenCreate(): UseTokenCreateResult {
-  const { signer, accountId, isConnected, demoMode } = useHedera();
+  const { signer, accountId, isConnected, demoMode, network } = useHedera();
   const [tokenId, setTokenId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -73,10 +74,15 @@ export function useTokenCreate(): UseTokenCreateResult {
 
         const isNFT = params.type === 'NFT';
 
+        // DAppSigner.populateTransaction() only sets transactionId — it never
+        // sets nodeAccountIds. Calling tx.freeze() without them throws:
+        //   "nodeAccountId must be set or client must be provided with freezeWith"
+        // Fix: use freezeWith(client) so nodeAccountIds are populated, then
+        // executeWithSigner sends the frozen tx to the wallet via WalletConnect.
+        const client = network === 'mainnet' ? Client.forMainnet() : Client.forTestnet();
+
         // No adminKey / supplyKey — any randomly-generated key must also sign
-        // the creation transaction, which WalletConnect cannot do.
-        // Omitting them creates an immutable token whose treasury is the
-        // connected account — this is the only key that needs to sign.
+        // the creation transaction, which WalletConnect cannot provide.
         const tx = new TokenCreateTransaction()
           .setTokenName(params.name)
           .setTokenSymbol(params.symbol)
@@ -91,7 +97,7 @@ export function useTokenCreate(): UseTokenCreateResult {
           tx.setMaxSupply(params.maxSupply);
         }
 
-        const frozenTx = await tx.freezeWithSigner(signer);
+        const frozenTx = tx.freezeWith(client);
         const response = await frozenTx.executeWithSigner(signer);
         const receipt = await response.getReceiptWithSigner(signer);
         const id = receipt.tokenId?.toString() ?? null;
@@ -106,7 +112,7 @@ export function useTokenCreate(): UseTokenCreateResult {
         setLoading(false);
       }
     },
-    [signer, accountId, isConnected, demoMode]
+    [signer, accountId, isConnected, demoMode, network]
   );
 
   return { tokenId, loading, error, createToken, reset };
