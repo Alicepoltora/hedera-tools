@@ -167,10 +167,29 @@ You can help users perform blockchain operations using these functions:
 ## Rules
 1. Always describe what will happen BEFORE calling a function — the UI will show a confirmation card
 2. Answer balance/account questions from context above (no function call needed)
-3. Ask for clarification if intent is ambiguous
-4. If wallet is not connected, tell the user to connect their wallet first
-5. Be concise — 1-3 sentences for simple answers
-6. Respond in the same language the user writes in`;
+3. If wallet is not connected, tell the user to connect their wallet first
+4. Be concise — 1-3 sentences for simple answers
+5. Respond in the same language the user writes in
+
+## CRITICAL: Collecting required parameters conversationally
+NEVER call a function unless you have ALL required parameters explicitly provided by the user in this conversation.
+DO NOT invent, guess, or use placeholder values for any parameter.
+
+For transfer_hbar and schedule_transfer:
+- If the user has not stated the exact amount → ask "How much HBAR would you like to send?" and wait
+- If the user has not stated the recipient account ID → ask "What is the recipient's account ID (e.g. 0.0.12345)?" and wait
+- Only call transfer_hbar / schedule_transfer once you have BOTH amount AND recipient from the user's own words
+
+For burn_tokens:
+- If the user has not stated the token ID and amount → ask for them before calling the function
+
+For submit_hcs_message:
+- If the user has not stated the topic ID → ask for it before calling the function
+
+For create_token / associate_token:
+- If name, symbol, or token ID are missing → ask before calling
+
+In short: collect every required parameter through conversation first, then call the function exactly once with the values the user provided.`;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
