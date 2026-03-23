@@ -1,5 +1,10 @@
 import { useCallback, useState } from 'react';
-import { TokenBurnTransaction } from '@hiero-ledger/sdk';
+import {
+  TokenBurnTransaction,
+  TransactionId,
+  AccountId,
+} from '@hiero-ledger/sdk';
+import { transactionToBase64String } from '@hashgraph/hedera-wallet-connect';
 import { useHedera } from './useHedera';
 
 export interface UseTokenBurnResult {
@@ -14,6 +19,7 @@ export interface UseTokenBurnResult {
 }
 
 const DEMO_DELAY = 1200;
+const NODE_IDS = ['0.0.3', '0.0.4', '0.0.5', '0.0.6', '0.0.7'];
 
 /**
  * Hook for burning HTS tokens (both fungible and NFTs).
@@ -24,7 +30,7 @@ const DEMO_DELAY = 1200;
  * await burnNFT('0.0.1234567', [1, 2, 3]);
  */
 export function useTokenBurn(): UseTokenBurnResult {
-  const { signer, isConnected, demoMode } = useHedera();
+  const { signer, connector, accountId, isConnected, demoMode } = useHedera();
   const [txId, setTxId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -47,7 +53,7 @@ export function useTokenBurn(): UseTokenBurnResult {
         return fakeId;
       }
 
-      if (!isConnected) {
+      if (!isConnected || !accountId) {
         setError('Wallet not connected');
         setLoading(false);
         return null;
@@ -55,18 +61,27 @@ export function useTokenBurn(): UseTokenBurnResult {
 
       try {
         if (!signer) throw new Error('Wallet signer not available');
+        if (!connector) throw new Error('WalletConnect connector not available');
 
-        const tx = new TokenBurnTransaction().setTokenId(tokenId);
+        const tx = new TokenBurnTransaction()
+          .setTokenId(tokenId)
+          .setTransactionId(TransactionId.generate(AccountId.fromString(accountId)))
+          .setNodeAccountIds(NODE_IDS.map((id) => AccountId.fromString(id)));
 
         if (serials.length > 0) {
-          tx.setSerials(serials); // number[] is compatible with (number | Long)[]
+          tx.setSerials(serials);
         } else {
           tx.setAmount(BigInt(amount));
         }
 
-        const frozenTx = await tx.freezeWithSigner(signer);
-        const response = await frozenTx.executeWithSigner(signer);
-        const id = response.transactionId.toString();
+        const frozenTx = tx.freeze();
+        const id = frozenTx.transactionId!.toString();
+
+        const fullySigned = await signer.signTransaction(frozenTx);
+        await connector.executeTransaction({
+          signedTransaction: [transactionToBase64String(fullySigned)],
+        });
+
         setTxId(id);
         return id;
       } catch (err) {
@@ -77,7 +92,7 @@ export function useTokenBurn(): UseTokenBurnResult {
         setLoading(false);
       }
     },
-    [signer, isConnected, demoMode]
+    [signer, connector, accountId, isConnected, demoMode]
   );
 
   const burnFungible = useCallback(
