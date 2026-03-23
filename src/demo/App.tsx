@@ -216,7 +216,7 @@ function OverviewSection() {
         </div>
         <p className="text-slate-400 text-base max-w-2xl leading-relaxed">
           Open-source React component library for Hedera developers — hooks for HTS, HCS, staking,
-          smart contracts, and plug-and-play UI components. Built for the <span className="text-violet-400">Hedera Hello Future Apex 2026</span> Hackathon.
+          smart contracts, and plug-and-play UI components.
         </p>
 
         {/* Install command */}
