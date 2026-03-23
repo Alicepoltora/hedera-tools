@@ -611,36 +611,91 @@ function HTSSection() {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-xl font-semibold text-white">HTS Tokens</h2>
+      {/* Section header */}
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-semibold text-white">HTS Tokens</h2>
+        <a
+          href="https://www.npmjs.com/package/hedera-ui-kit"
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-950/40 border border-red-800/40 text-red-400 hover:bg-red-950/60 transition-colors text-xs font-mono font-semibold"
+        >
+          <svg width="13" height="13" viewBox="0 0 780 250" fill="currentColor">
+            <path d="M240 250V0H0v250h240zm-180-30V30h120v190H60zm300 30V30h-60V0h240v250h-60V30h-60v220h-60zm300-250v250h-60V0h60zm60 0h120v250h-60V30h-60V0z"/>
+          </svg>
+          hedera-ui-kit
+        </a>
+      </div>
 
       {/* Token Create */}
-      <DemoCard
-        title="useTokenCreate() — Create New Token"
-        badge="hook"
-        snippet={`import { useTokenCreate } from 'hedera-ui-kit';\n\nconst { createToken, tokenId } = useTokenCreate();\nawait createToken({ name: 'My Token', symbol: 'MTK', type: 'FUNGIBLE', initialSupply: 1000 });`}
-      >
-        <div className="space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            <Input label="Token Name" value={createName} onChange={(e) => setCreateName(e.target.value)} />
-            <Input label="Symbol" value={createSymbol} onChange={(e) => setCreateSymbol(e.target.value)} />
+      <div className="rounded-2xl bg-slate-900 border border-slate-800 overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-800">
+          <div className="flex items-center gap-2">
+            <h3 className="font-semibold text-slate-100 text-sm">useTokenCreate()</h3>
+            <span className="text-xs px-2 py-0.5 rounded-full bg-violet-600/20 text-violet-400 border border-violet-600/30 font-mono">hook</span>
           </div>
-          <div className="flex gap-2">
-            <Btn onClick={() => void createToken({ name: createName, symbol: createSymbol, type: 'FUNGIBLE', initialSupply: 1000, decimals: 2 })} disabled={createLoading}>
-              {createLoading ? 'Creating…' : 'Create FT'}
-            </Btn>
-            <Btn variant="secondary" onClick={() => void createToken({ name: createName, symbol: createSymbol, type: 'NFT' })} disabled={createLoading}>
-              {createLoading ? 'Creating…' : 'Create NFT'}
-            </Btn>
-          </div>
-          {newTokenId && <StatBox label="New Token ID" value={newTokenId} />}
         </div>
-      </DemoCard>
+        <div className="p-5 space-y-4">
+          {/* Code snippet — always visible */}
+          <Code>{`import { useTokenCreate } from 'hedera-ui-kit';
+
+const { createToken, tokenId, loading, error } = useTokenCreate();
+
+// Create fungible token
+await createToken({
+  name: 'My Token',
+  symbol: 'MTK',
+  type: 'FUNGIBLE',
+  initialSupply: 1000,
+  decimals: 2,
+});
+
+// Create NFT collection
+await createToken({ name: 'My NFT', symbol: 'NFT', type: 'NFT' });
+
+// tokenId → '0.0.XXXXXXX' on success`}</Code>
+
+          {/* Live demo */}
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <Input label="Token Name" value={createName} onChange={(e) => setCreateName(e.target.value)} />
+              <Input label="Symbol" value={createSymbol} onChange={(e) => setCreateSymbol(e.target.value)} />
+            </div>
+            <div className="flex gap-2">
+              <Btn
+                onClick={() => void createToken({ name: createName, symbol: createSymbol, type: 'FUNGIBLE', initialSupply: 1000, decimals: 2 })}
+                disabled={createLoading}
+              >
+                {createLoading ? 'Creating…' : '+ Create Fungible Token'}
+              </Btn>
+              <Btn
+                variant="secondary"
+                onClick={() => void createToken({ name: createName, symbol: createSymbol, type: 'NFT' })}
+                disabled={createLoading}
+              >
+                {createLoading ? 'Creating…' : '+ Create NFT Collection'}
+              </Btn>
+            </div>
+            {newTokenId && (
+              <div className="bg-emerald-950/30 border border-emerald-800/30 rounded-xl p-3">
+                <p className="text-xs text-emerald-400 mb-1">Token Created</p>
+                <p className="font-mono text-sm text-white">{newTokenId}</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
 
       {/* Token Burn */}
       <DemoCard
-        title="useTokenBurn() — Burn Tokens"
+        title="useTokenBurn()"
         badge="hook"
-        snippet={`import { useTokenBurn } from 'hedera-ui-kit';\n\nconst { burnFungible, burnNFT, txId } = useTokenBurn();\nawait burnFungible('0.0.1234567', 100);\nawait burnNFT('0.0.1234567', [1, 2, 3]);`}
+        snippet={`import { useTokenBurn } from 'hedera-ui-kit';
+
+const { burnFungible, burnNFT, txId } = useTokenBurn();
+
+await burnFungible('0.0.1234567', 100);
+await burnNFT('0.0.1234567', [1, 2, 3]);`}
       >
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
@@ -654,56 +709,6 @@ function HTSSection() {
         </div>
       </DemoCard>
 
-      {/* Token Info */}
-      <DemoCard
-        title="useTokenInfo() — Full Token Metadata"
-        badge="hook"
-        snippet={`import { useTokenInfo } from 'hedera-ui-kit';\n\nconst { info } = useTokenInfo('0.0.1234567');\nconsole.log(info?.name, info?.totalSupply, info?.pauseStatus);`}
-      >
-        {tiLoading ? (
-          <p className="text-slate-500 text-sm animate-pulse">Loading…</p>
-        ) : tokenInfoData ? (
-          <div className="grid grid-cols-2 gap-3">
-            <StatBox label="Name" value={tokenInfoData.name} />
-            <StatBox label="Symbol" value={tokenInfoData.symbol} />
-            <StatBox label="Total Supply" value={tokenInfoData.totalSupply.toLocaleString()} />
-            <StatBox label="Type" value={tokenInfoData.type === 'FUNGIBLE_COMMON' ? 'Fungible' : 'NFT'} />
-            <StatBox label="Supply Type" value={tokenInfoData.supplyType} />
-            <StatBox label="Pause Status" value={tokenInfoData.pauseStatus} />
-          </div>
-        ) : (
-          <p className="text-slate-500 text-sm">Enter a token ID above to see full metadata.</p>
-        )}
-      </DemoCard>
-
-      {/* Mint form */}
-      <DemoCard
-        title="<TokenMintForm /> — Create Fungible Token"
-        badge="component"
-        snippet={`import { TokenMintForm } from 'hedera-ui-kit';
-
-<TokenMintForm
-  onSuccess={(result) => {
-    console.log('Token created:', result.tokenId);
-    console.log('Tx ID:', result.txId);
-  }}
-  onError={(err) => console.error(err)}
-/>`}
-      >
-        <div className="space-y-4">
-          <TokenMintForm onSuccess={setMintResult} />
-          {mintResult && (
-            <div className="rounded-xl bg-emerald-950/30 border border-emerald-700/30 p-4 space-y-1">
-              <p className="text-emerald-400 text-sm font-semibold">✅ Token created!</p>
-              <div className="grid grid-cols-2 gap-2 mt-2">
-                <StatBox label="Token ID" value={mintResult.tokenId} />
-                <StatBox label="Transaction" value={mintResult.txId?.slice(0, 20) + '…'} />
-              </div>
-            </div>
-          )}
-        </div>
-      </DemoCard>
-
       {/* Token lookup */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <DemoCard
@@ -711,10 +716,10 @@ function HTSSection() {
           badge="hook"
           snippet={`import { useTokenBalance } from 'hedera-ui-kit';
 
-const { balance, loading } = useTokenBalance('0.0.1234567');
-// balance.amount    → raw number
+const { balance } = useTokenBalance('0.0.1234567');
+// balance.balance   → raw units
 // balance.decimals  → number
-// balance.symbol    → 'CCR'
+// balance.symbol    → 'MTK'
 // balance.formatted → adjusted for decimals`}
         >
           <div className="space-y-3">
@@ -744,10 +749,8 @@ const { balance, loading } = useTokenBalance('0.0.1234567');
 
 const { associate, dissociate, loading, txId } = useTokenAssociate();
 
-// Must associate before receiving a token
+// Required before receiving HTS tokens
 await associate('0.0.1234567');
-
-// Remove association (balance must be 0)
 await dissociate('0.0.1234567');`}
         >
           <div className="space-y-3">
@@ -758,46 +761,53 @@ await dissociate('0.0.1234567');`}
               Token: <span className="text-violet-400">{lookupId}</span>
             </div>
             <div className="flex gap-2">
-              <Btn
-                disabled={assocLoading || !isConnected}
-                onClick={() => void associate(lookupId)}
-                className="flex-1"
-              >
+              <Btn disabled={assocLoading || !isConnected} onClick={() => void associate(lookupId)} className="flex-1">
                 {assocLoading ? '…' : '+ Associate'}
               </Btn>
-              <Btn
-                variant="secondary"
-                disabled={assocLoading || !isConnected}
-                onClick={() => void dissociate(lookupId)}
-                className="flex-1"
-              >
+              <Btn variant="secondary" disabled={assocLoading || !isConnected} onClick={() => void dissociate(lookupId)} className="flex-1">
                 − Dissociate
               </Btn>
             </div>
             {!isConnected && (
-              <p className="text-xs text-slate-600 text-center">Connect wallet or demo mode required</p>
+              <p className="text-xs text-slate-600 text-center">Connect wallet to use</p>
             )}
             <TransactionStatus txId={assocTxId} />
           </div>
         </DemoCard>
       </div>
 
-      {/* Token card */}
+      {/* Token Info */}
       <DemoCard
-        title="<TokenCard /> — Token Metadata"
-        badge="component"
-        snippet={`import { TokenCard } from 'hedera-ui-kit';
+        title="useTokenInfo()"
+        badge="hook"
+        snippet={`import { useTokenInfo } from 'hedera-ui-kit';
 
-// Fetches & displays token metadata from Mirror Node
-<TokenCard
-  tokenId="0.0.1234567"
-  showId
-  onClick={(info) => {
-    console.log(info.name, info.symbol, info.totalSupply);
-  }}
-/>`}
+const { info } = useTokenInfo('0.0.1234567');
+// info.name, info.symbol, info.totalSupply
+// info.type, info.supplyType, info.pauseStatus`}
       >
-        <TokenCard tokenId={lookupId} showId onClick={(info) => console.log(info)} />
+        <div className="space-y-3">
+          <Input
+            label="Token ID"
+            placeholder="0.0.XXXXXX"
+            value={lookupId}
+            onChange={(e) => setLookupId(e.target.value)}
+          />
+          {tiLoading ? (
+            <p className="text-slate-500 text-sm animate-pulse">Loading…</p>
+          ) : tokenInfoData ? (
+            <div className="grid grid-cols-2 gap-3">
+              <StatBox label="Name" value={tokenInfoData.name} />
+              <StatBox label="Symbol" value={tokenInfoData.symbol} />
+              <StatBox label="Total Supply" value={tokenInfoData.totalSupply.toLocaleString()} />
+              <StatBox label="Type" value={tokenInfoData.type === 'FUNGIBLE_COMMON' ? 'Fungible' : 'NFT'} />
+              <StatBox label="Supply Type" value={tokenInfoData.supplyType} />
+              <StatBox label="Pause Status" value={tokenInfoData.pauseStatus} />
+            </div>
+          ) : (
+            <p className="text-slate-500 text-sm">Enter a token ID to see metadata.</p>
+          )}
+        </div>
       </DemoCard>
     </div>
   );
