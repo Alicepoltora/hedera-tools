@@ -68,10 +68,37 @@ export interface UseAIAgentResult {
 
 const DEMO_DELAY = 1200;
 
-function getDemoResponse(text: string, balance: number | null): { message: string; action?: AIAction } {
+/** Parse a Hedera account ID (0.0.XXXXX) and an HBAR amount from free text. */
+function parseSendDetails(text: string): { to: string; amount: number } | null {
+  const accountMatch = text.match(/\b0\.0\.(\d+)\b/);
+  // Match a number optionally followed by "hbar" or "ℏ"
+  const amountMatch = text.match(/(\d+(?:\.\d+)?)\s*(?:hbar|ℏ)?/i);
+  if (accountMatch && amountMatch) {
+    const amount = parseFloat(amountMatch[1]);
+    if (amount > 0) return { to: accountMatch[0], amount };
+  }
+  return null;
+}
+
+/** True if the last assistant message was asking for send HBAR details. */
+function isAwaitingSendDetails(prevMessages: ChatMessage[]): boolean {
+  const last = [...prevMessages].reverse().find((m) => m.role === 'assistant');
+  return (
+    !!last?.content &&
+    last.content.includes('How much') &&
+    (last.content.includes('HBAR') || last.content.includes('account'))
+  );
+}
+
+function getDemoResponse(
+  text: string,
+  balance: number | null,
+  prevMessages: ChatMessage[]
+): { message: string; action?: AIAction } {
   const lower = text.toLowerCase();
 
-  if (lower.includes('balance') || lower.includes('hbar') && lower.includes('how')) {
+  // ── Balance ──
+  if (lower.includes('balance') || (lower.includes('hbar') && lower.includes('how'))) {
     const hbar = balance?.toFixed(2) ?? '—';
     const usd = balance != null ? `~$${(balance * 0.004).toFixed(2)} USD` : '';
     return {
@@ -79,18 +106,29 @@ function getDemoResponse(text: string, balance: number | null): { message: strin
     };
   }
 
-  if (lower.includes('send') || lower.includes('transfer')) {
+  // ── Send / Transfer HBAR ──
+  if (lower.includes('send') || lower.includes('transfer') || isAwaitingSendDetails(prevMessages)) {
+    // Try to extract amount and recipient from the message
+    const details = parseSendDetails(text);
+    if (details) {
+      return {
+        message: `Got it — sending **${details.amount} HBAR** to **${details.to}**. Please confirm:`,
+        action: {
+          type: 'transfer_hbar',
+          params: { to: details.to, amount: details.amount },
+          confirmationRequired: true,
+          description: `Send ${details.amount} HBAR → ${details.to}`,
+        },
+      };
+    }
+    // No details yet — ask the user
     return {
-      message: 'Ready to send HBAR. Please confirm the transaction:',
-      action: {
-        type: 'transfer_hbar',
-        params: { to: '0.0.98', amount: 5 },
-        confirmationRequired: true,
-        description: 'Send 5 HBAR → 0.0.98',
-      },
+      message:
+        'Sure! How much HBAR would you like to send, and to which account?\n\nExample: **5 HBAR to 0.0.12345**',
     };
   }
 
+  // ── NFT collection ──
   if (lower.includes('nft') || lower.includes('collection')) {
     return {
       message: 'Creating NFT collection. Please confirm:',
@@ -103,6 +141,7 @@ function getDemoResponse(text: string, balance: number | null): { message: strin
     };
   }
 
+  // ── Fungible token ──
   if (lower.includes('create') || lower.includes('token') || lower.includes('launch')) {
     return {
       message: 'Creating a new token. Please confirm:',
@@ -115,7 +154,13 @@ function getDemoResponse(text: string, balance: number | null): { message: strin
     };
   }
 
-  if (lower.includes('hcs') || lower.includes('message') || lower.includes('topic') || lower.includes('submit') || lower.includes('log')) {
+  // ── HCS message ──
+  if (
+    lower.includes('hcs') ||
+    lower.includes('topic') ||
+    lower.includes('submit') ||
+    lower.includes('log')
+  ) {
     return {
       message: 'Submitting message to HCS topic. Please confirm:',
       action: {
@@ -127,23 +172,25 @@ function getDemoResponse(text: string, balance: number | null): { message: strin
     };
   }
 
-  if (lower.includes('staking') || lower.includes('stake') || lower.includes('reward') || lower.includes('node')) {
+  // ── Staking ──
+  if (lower.includes('staking') || lower.includes('stake') || lower.includes('reward')) {
     return {
       message:
         'Your account is staking on **Node 3**. Expected reward: **0.42 HBAR**. Current network APR ~6.5%. To change the node or claim rewards you need to sign a transaction via your wallet.',
     };
   }
 
-  if (lower.includes('what') || lower.includes('help') || lower.includes('hedera') || lower.includes('can you')) {
+  // ── Help ──
+  if (lower.includes('what') || lower.includes('help') || lower.includes('can you')) {
     return {
       message:
-        "I'm the AI assistant built into hedera-ui-kit. I can help with:\n\n• **Sending HBAR** — \"send 5 HBAR to 0.0.98\"\n• **Creating tokens** — \"create a token called Carbon Credit\"\n• **HCS messages** — \"submit to topic 0.0.123: event data\"\n• **Staking** — \"show my rewards\"\n• **Hedera questions** — ask me anything",
+        "I'm the AI assistant built into hedera-ui-kit. I can help with:\n\n• **Sending HBAR** — try: *send 5 HBAR to 0.0.98*\n• **Creating tokens** — try: *create a token called Carbon Credit*\n• **NFT collections** — try: *create an NFT collection*\n• **HCS messages** — try: *submit to topic 0.0.123*\n• **Staking info** — try: *show my rewards*",
     };
   }
 
   return {
     message:
-      'Got it. In demo mode I can simulate: sending HBAR, creating tokens, HCS messages, and staking. Try "send 5 HBAR" or "create a token".',
+      'Got it. In demo mode I can simulate: sending HBAR, creating tokens, HCS messages, and staking. Try **"send 5 HBAR to 0.0.98"** or **"create a token"**.',
   };
 }
 
@@ -195,7 +242,7 @@ export function useAIAgent(options: UseAIAgentOptions = {}): UseAIAgentResult {
       // Demo mode — no real API call
       if (demoMode || !apiEndpoint) {
         await new Promise((r) => setTimeout(r, DEMO_DELAY));
-        const demo = getDemoResponse(text, balance);
+        const demo = getDemoResponse(text, balance, messages);
         addMessage({ role: 'assistant', content: demo.message, action: demo.action });
         setLoading(false);
         return;
