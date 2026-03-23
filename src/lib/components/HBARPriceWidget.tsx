@@ -88,11 +88,11 @@ export function HBARPriceWidget({
           <div className="grid grid-cols-2 gap-2.5">
             <div className="bg-slate-800/60 rounded-lg p-2.5">
               <p className="text-xs text-slate-500 mb-0.5">HBAR Equiv</p>
-              <p className="text-sm font-mono text-slate-200">{rate.hbarEquiv.toLocaleString()}</p>
+              <p className="text-sm font-mono text-slate-200">{(rate.hbarEquiv ?? 0).toLocaleString()}</p>
             </div>
             <div className="bg-slate-800/60 rounded-lg p-2.5">
               <p className="text-xs text-slate-500 mb-0.5">Cent Equiv</p>
-              <p className="text-sm font-mono text-slate-200">{rate.centEquiv}¢</p>
+              <p className="text-sm font-mono text-slate-200">{rate.centEquiv ?? 0}¢</p>
             </div>
           </div>
 
