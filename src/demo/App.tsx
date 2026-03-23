@@ -1022,7 +1022,8 @@ await fetchMessages('0.0.12345', { limit: 20 });
 // ─────────────────────────────────────────────────────────────────────────────
 
 function StakingSection() {
-  const { stakingInfo, networkNodes, loading } = useStaking();
+  const { stakingInfo, networkNodes, loading, stake, unstake, error: stakingError } = useStaking();
+  const [stakeTxId, setStakeTxId] = useState<string | null>(null);
 
   return (
     <div className="space-y-6">
@@ -1048,15 +1049,14 @@ const { stakingInfo, networkNodes, loading, stake, unstake } = useStaking();
 // stakingInfo.declineReward     — boolean
 // stakingInfo.stakePeriodStart  — ISO timestamp
 
-// networkNodes[].nodeId
-// networkNodes[].description
-// networkNodes[].stake          — total staked HBAR
+// Stake to a node (signs AccountUpdateTransaction)
+const txId = await stake(3);
 
-// Stake to a node
-await stake(nodeId);`}
+// Remove staking
+await unstake();`}
       >
         {loading ? (
-          <p className="text-slate-500 text-sm">Loading staking info…</p>
+          <p className="text-slate-500 text-sm animate-pulse">Loading staking info…</p>
         ) : (
           <div className="space-y-4">
             {stakingInfo && (
@@ -1080,30 +1080,75 @@ await stake(nodeId);`}
               </div>
             )}
 
+            {/* Unstake button — shown when currently staked */}
+            {stakingInfo?.stakedNodeId != null && (
+              <Btn
+                variant="danger"
+                onClick={() => void unstake().then((id) => id && setStakeTxId(id))}
+                disabled={loading}
+                className="w-full"
+              >
+                {loading ? 'Processing…' : `Unstake from Node ${stakingInfo.stakedNodeId}`}
+              </Btn>
+            )}
+
             {networkNodes.length > 0 && (
               <div className="rounded-xl border border-slate-800 overflow-hidden">
                 <div className="px-4 py-2.5 bg-slate-800/40 border-b border-slate-800">
                   <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
-                    Network Nodes ({networkNodes.length})
+                    Network Nodes ({networkNodes.length}) — click to stake
                   </p>
                 </div>
                 <div className="divide-y divide-slate-800">
-                  {networkNodes.slice(0, 7).map((node) => (
-                    <div key={node.nodeId} className="px-4 py-2.5 flex items-center justify-between text-sm">
-                      <div className="flex items-center gap-3">
-                        <span className="w-6 h-6 rounded-md bg-violet-600/20 text-violet-400 text-xs flex items-center justify-center font-mono font-bold">
-                          {node.nodeId}
-                        </span>
-                        <span className="text-slate-300 text-xs">
-                          {node.description || `Node ${node.nodeId}`}
-                        </span>
+                  {networkNodes.slice(0, 7).map((node) => {
+                    const isStaked = stakingInfo?.stakedNodeId === node.nodeId;
+                    return (
+                      <div key={node.nodeId} className="px-4 py-2.5 flex items-center justify-between text-sm">
+                        <div className="flex items-center gap-3">
+                          <span className={`w-6 h-6 rounded-md text-xs flex items-center justify-center font-mono font-bold ${
+                            isStaked
+                              ? 'bg-emerald-500/20 text-emerald-400 ring-1 ring-emerald-500/40'
+                              : 'bg-violet-600/20 text-violet-400'
+                          }`}>
+                            {node.nodeId}
+                          </span>
+                          <div>
+                            <span className="text-slate-300 text-xs block">
+                              {node.description || `Node ${node.nodeId}`}
+                            </span>
+                            <span className="text-slate-600 text-xs font-mono">
+                              {node.stake.toLocaleString()} ℏ staked
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {isStaked && (
+                            <span className="text-xs text-emerald-400 font-semibold">✓ Active</span>
+                          )}
+                          {!isStaked && (
+                            <button
+                              onClick={() => void stake(node.nodeId).then((id) => id && setStakeTxId(id))}
+                              disabled={loading}
+                              className="text-xs px-2.5 py-1 rounded-lg bg-violet-600/20 text-violet-400 border border-violet-600/30 hover:bg-violet-600/40 transition-colors disabled:opacity-40"
+                            >
+                              Stake →
+                            </button>
+                          )}
+                        </div>
                       </div>
-                      <span className="font-mono text-xs text-slate-500">
-                        {node.stake.toLocaleString()} ℏ
-                      </span>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
+              </div>
+            )}
+
+            {stakingError && (
+              <p className="text-xs text-red-400">⚠️ {stakingError}</p>
+            )}
+            {stakeTxId && (
+              <div className="rounded-lg bg-emerald-950/30 border border-emerald-800/30 p-3">
+                <p className="text-xs text-emerald-400 mb-1">✅ Staking updated</p>
+                <p className="font-mono text-xs text-slate-400 break-all">{stakeTxId}</p>
               </div>
             )}
           </div>
