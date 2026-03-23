@@ -4,6 +4,7 @@ import {
   TokenType,
   TokenSupplyType,
   PrivateKey,
+  AccountId,
 } from '@hiero-ledger/sdk';
 import { useHedera } from './useHedera';
 
@@ -73,7 +74,9 @@ export function useTokenCreate(): UseTokenCreateResult {
         if (!signer) throw new Error('Wallet signer not available');
 
         const isNFT = params.type === 'NFT';
-        const adminKey = PrivateKey.generateED25519().publicKey;
+        // supplyKey: freshly generated — needed for minting later.
+        // adminKey is intentionally omitted: a random admin key would require
+        // an extra signature that WalletConnect cannot provide, causing INVALID_SIGNATURE.
         const supplyKey = PrivateKey.generateED25519().publicKey;
 
         const tx = new TokenCreateTransaction()
@@ -82,8 +85,7 @@ export function useTokenCreate(): UseTokenCreateResult {
           .setTokenType(isNFT ? TokenType.NonFungibleUnique : TokenType.FungibleCommon)
           .setDecimals(isNFT ? 0 : (params.decimals ?? 2))
           .setInitialSupply(isNFT ? 0 : (params.initialSupply ?? 0))
-          .setTreasuryAccountId(accountId)
-          .setAdminKey(adminKey)
+          .setTreasuryAccountId(AccountId.fromString(accountId))
           .setSupplyKey(supplyKey)
           .setSupplyType(params.maxSupply ? TokenSupplyType.Finite : TokenSupplyType.Infinite)
           .setTokenMemo(params.memo ?? '');
