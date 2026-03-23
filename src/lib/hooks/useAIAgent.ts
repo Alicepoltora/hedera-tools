@@ -68,27 +68,40 @@ export interface UseAIAgentResult {
 
 const DEMO_DELAY = 1200;
 
-/** Parse a Hedera account ID (0.0.XXXXX) and an HBAR amount from free text. */
-function parseSendDetails(text: string): { to: string; amount: number } | null {
-  const accountMatch = text.match(/\b0\.0\.(\d+)\b/);
-  // Match a number optionally followed by "hbar" or "ℏ"
-  const amountMatch = text.match(/(\d+(?:\.\d+)?)\s*(?:hbar|ℏ)?/i);
-  if (accountMatch && amountMatch) {
-    const amount = parseFloat(amountMatch[1]);
-    if (amount > 0) return { to: accountMatch[0], amount };
-  }
+// ── Send HBAR step-by-step helpers ──────────────────────────────────────────
+
+/** Last assistant message content. */
+function lastAssistantMsg(msgs: ChatMessage[]): string {
+  return [...msgs].reverse().find((m) => m.role === 'assistant')?.content ?? '';
+}
+
+/** Parse a positive number from free text (e.g. "5", "0.5", "10 hbar"). */
+function parseAmount(text: string): number | null {
+  const m = text.match(/(\d+(?:\.\d+)?)/);
+  if (m) { const n = parseFloat(m[1]); if (n > 0) return n; }
   return null;
 }
 
-/** True if the last assistant message was asking for send HBAR details. */
-function isAwaitingSendDetails(prevMessages: ChatMessage[]): boolean {
-  const last = [...prevMessages].reverse().find((m) => m.role === 'assistant');
-  return (
-    !!last?.content &&
-    last.content.includes('How much') &&
-    (last.content.includes('HBAR') || last.content.includes('account'))
-  );
+/** Parse a Hedera account ID (0.0.XXXXX) from free text. */
+function parseAccountId(text: string): string | null {
+  const m = text.match(/\b0\.0\.(\d+)\b/);
+  return m ? m[0] : null;
 }
+
+/**
+ * Extract the HBAR amount we already confirmed in a prior assistant message.
+ * Looks for the pattern "**X HBAR**" in assistant history.
+ */
+function extractConfirmedAmount(msgs: ChatMessage[]): number {
+  for (const m of [...msgs].reverse()) {
+    if (m.role !== 'assistant') continue;
+    const match = m.content.match(/\*\*(\d+(?:\.\d+)?)\s*HBAR\*\*/i);
+    if (match) return parseFloat(match[1]);
+  }
+  return 0;
+}
+
+// ── Main demo response ────────────────────────────────────────────────────────
 
 function getDemoResponse(
   text: string,
@@ -96,6 +109,41 @@ function getDemoResponse(
   prevMessages: ChatMessage[]
 ): { message: string; action?: AIAction } {
   const lower = text.toLowerCase();
+  const lastAsst = lastAssistantMsg(prevMessages);
+
+  // ── Step 3: we asked for the address → user just provided it ──
+  if (lastAsst.includes('__AWAITING_ADDRESS__')) {
+    const to = parseAccountId(text);
+    const amount = extractConfirmedAmount(prevMessages);
+    if (to && amount > 0) {
+      return {
+        message: `Ready to send **${amount} HBAR** to **${to}**. Confirm below to sign with your wallet.`,
+        action: {
+          type: 'transfer_hbar',
+          params: { to, amount },
+          confirmationRequired: true,
+          description: `Send ${amount} HBAR → ${to}`,
+        },
+      };
+    }
+    return {
+      message: 'Please enter a valid Hedera account ID — e.g. **0.0.12345**',
+    };
+  }
+
+  // ── Step 2: we asked for the amount → user just typed it ──
+  if (lastAsst.includes('__AWAITING_AMOUNT__')) {
+    const amount = parseAmount(text);
+    if (amount) {
+      return {
+        // Embed sentinel + the confirmed amount so step 3 can find it
+        message: `Got it — **${amount} HBAR**. Now enter the recipient wallet address:\n__AWAITING_ADDRESS__`,
+      };
+    }
+    return {
+      message: 'Please enter a valid amount — e.g. **5** or **10.5**\n__AWAITING_AMOUNT__',
+    };
+  }
 
   // ── Balance ──
   if (lower.includes('balance') || (lower.includes('hbar') && lower.includes('how'))) {
@@ -106,25 +154,11 @@ function getDemoResponse(
     };
   }
 
-  // ── Send / Transfer HBAR ──
-  if (lower.includes('send') || lower.includes('transfer') || isAwaitingSendDetails(prevMessages)) {
-    // Try to extract amount and recipient from the message
-    const details = parseSendDetails(text);
-    if (details) {
-      return {
-        message: `Got it — sending **${details.amount} HBAR** to **${details.to}**. Please confirm:`,
-        action: {
-          type: 'transfer_hbar',
-          params: { to: details.to, amount: details.amount },
-          confirmationRequired: true,
-          description: `Send ${details.amount} HBAR → ${details.to}`,
-        },
-      };
-    }
-    // No details yet — ask the user
+  // ── Step 1: send / transfer intent ──
+  if (lower.includes('send') || lower.includes('transfer')) {
     return {
-      message:
-        'Sure! How much HBAR would you like to send, and to which account?\n\nExample: **5 HBAR to 0.0.12345**',
+      // Sentinel tells step 2 handler what we're waiting for
+      message: 'How much HBAR would you like to send?\n__AWAITING_AMOUNT__',
     };
   }
 
@@ -155,12 +189,7 @@ function getDemoResponse(
   }
 
   // ── HCS message ──
-  if (
-    lower.includes('hcs') ||
-    lower.includes('topic') ||
-    lower.includes('submit') ||
-    lower.includes('log')
-  ) {
+  if (lower.includes('hcs') || lower.includes('topic') || lower.includes('submit') || lower.includes('log')) {
     return {
       message: 'Submitting message to HCS topic. Please confirm:',
       action: {
@@ -184,13 +213,13 @@ function getDemoResponse(
   if (lower.includes('what') || lower.includes('help') || lower.includes('can you')) {
     return {
       message:
-        "I'm the AI assistant built into hedera-ui-kit. I can help with:\n\n• **Sending HBAR** — try: *send 5 HBAR to 0.0.98*\n• **Creating tokens** — try: *create a token called Carbon Credit*\n• **NFT collections** — try: *create an NFT collection*\n• **HCS messages** — try: *submit to topic 0.0.123*\n• **Staking info** — try: *show my rewards*",
+        "I'm the AI assistant built into hedera-ui-kit. I can help with:\n\n• **Sending HBAR** — say: *send HBAR*\n• **Creating tokens** — say: *create a token*\n• **NFT collections** — say: *create an NFT collection*\n• **HCS messages** — say: *submit a message*\n• **Staking info** — say: *show my rewards*",
     };
   }
 
   return {
     message:
-      'Got it. In demo mode I can simulate: sending HBAR, creating tokens, HCS messages, and staking. Try **"send 5 HBAR to 0.0.98"** or **"create a token"**.',
+      'In demo mode I can simulate: sending HBAR, creating tokens, HCS messages, and staking. Try **"send HBAR"** or **"create a token"**.',
   };
 }
 
