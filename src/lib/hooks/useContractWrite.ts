@@ -1,5 +1,12 @@
 import { useCallback, useState } from 'react';
-import { ContractExecuteTransaction, ContractId, Hbar } from '@hiero-ledger/sdk';
+import {
+  ContractExecuteTransaction,
+  ContractId,
+  Hbar,
+  TransactionId,
+  AccountId,
+} from '@hiero-ledger/sdk';
+import { transactionToBase64String } from '@hashgraph/hedera-wallet-connect';
 import { useHedera } from './useHedera';
 
 export interface ContractWriteResult {
@@ -22,6 +29,7 @@ export interface ContractWriteParams {
 }
 
 const DEMO_DELAY = 1200;
+const NODE_IDS = ['0.0.3', '0.0.4', '0.0.5', '0.0.6', '0.0.7'];
 
 /**
  * Execute a state-changing function on a Hedera smart contract.
@@ -32,7 +40,7 @@ const DEMO_DELAY = 1200;
  * await write({ contractId: '0.0.12345', functionName: 'transfer', gas: 80_000 });
  */
 export function useContractWrite(): ContractWriteResult {
-  const { signer, accountId, isConnected, demoMode } = useHedera();
+  const { signer, connector, accountId, isConnected, demoMode } = useHedera();
 
   const [txId, setTxId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -44,11 +52,6 @@ export function useContractWrite(): ContractWriteResult {
   }, []);
 
   const write = useCallback(async (params: ContractWriteParams): Promise<string | null> => {
-    if (!isConnected || !accountId) {
-      setError('Wallet not connected.');
-      return null;
-    }
-
     setLoading(true);
     setError(null);
 
@@ -60,13 +63,22 @@ export function useContractWrite(): ContractWriteResult {
       return fake;
     }
 
+    if (!isConnected || !accountId) {
+      setError('Wallet not connected.');
+      setLoading(false);
+      return null;
+    }
+
     try {
       if (!signer) throw new Error('Wallet signer not available');
+      if (!connector) throw new Error('WalletConnect connector not available');
 
       const tx = new ContractExecuteTransaction()
         .setContractId(ContractId.fromString(params.contractId))
         .setGas(params.gas ?? 100_000)
-        .setFunction(params.functionName);
+        .setFunction(params.functionName)
+        .setTransactionId(TransactionId.generate(AccountId.fromString(accountId)))
+        .setNodeAccountIds(NODE_IDS.map((id) => AccountId.fromString(id)));
 
       if (params.encodedParams) {
         tx.setFunctionParameters(params.encodedParams);
@@ -76,9 +88,14 @@ export function useContractWrite(): ContractWriteResult {
         tx.setPayableAmount(new Hbar(params.payableAmount));
       }
 
-      const frozenTx = await tx.freezeWithSigner(signer);
-      const response = await frozenTx.executeWithSigner(signer);
-      const id = response.transactionId.toString();
+      const frozenTx = tx.freeze();
+      const id = frozenTx.transactionId!.toString();
+
+      const fullySigned = await signer.signTransaction(frozenTx);
+      await connector.executeTransaction({
+        signedTransaction: [transactionToBase64String(fullySigned)],
+      });
+
       setTxId(id);
       return id;
     } catch (err) {
@@ -88,7 +105,7 @@ export function useContractWrite(): ContractWriteResult {
     } finally {
       setLoading(false);
     }
-  }, [signer, accountId, isConnected, demoMode]);
+  }, [signer, connector, accountId, isConnected, demoMode]);
 
   return { txId, loading, error, write, reset };
 }
