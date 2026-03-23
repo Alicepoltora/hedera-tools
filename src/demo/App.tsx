@@ -595,7 +595,6 @@ await transfer('0.0.98', 5);
 
 function HTSSection() {
   const { isConnected } = useHedera();
-  const [mintResult, setMintResult] = useState<TokenMintResult | null>(null);
   const [lookupId, setLookupId] = useState('0.0.1234567');
   const { balance, loading: balLoading } = useTokenBalance(lookupId);
   const { associate, dissociate, loading: assocLoading, txId: assocTxId } = useTokenAssociate();
@@ -603,7 +602,7 @@ function HTSSection() {
   // New hooks
   const [createName, setCreateName] = useState('My Token');
   const [createSymbol, setCreateSymbol] = useState('MTK');
-  const { createToken, tokenId: newTokenId, loading: createLoading } = useTokenCreate();
+  const { createToken, tokenId: newTokenId, loading: createLoading, error: createError } = useTokenCreate();
   const [burnTokenId, setBurnTokenId] = useState('0.0.1234567');
   const [burnAmount, setBurnAmount] = useState('100');
   const { burnFungible, txId: burnTxId, loading: burnLoading } = useTokenBurn();
@@ -678,8 +677,14 @@ await createToken({ name: 'My NFT', symbol: 'NFT', type: 'NFT' });
             </div>
             {newTokenId && (
               <div className="bg-emerald-950/30 border border-emerald-800/30 rounded-xl p-3">
-                <p className="text-xs text-emerald-400 mb-1">Token Created</p>
+                <p className="text-xs text-emerald-400 mb-1">✅ Token Created</p>
                 <p className="font-mono text-sm text-white">{newTokenId}</p>
+              </div>
+            )}
+            {createError && (
+              <div className="bg-red-950/40 border border-red-700/40 rounded-xl p-3">
+                <p className="text-xs text-red-400 mb-1">❌ Error</p>
+                <p className="font-mono text-xs text-red-300 break-all">{createError}</p>
               </div>
             )}
           </div>
