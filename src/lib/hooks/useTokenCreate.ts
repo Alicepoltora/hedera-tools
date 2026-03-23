@@ -4,6 +4,8 @@ import {
   TokenType,
   TokenSupplyType,
   Client,
+  TransactionId,
+  AccountId,
 } from '@hiero-ledger/sdk';
 import { useHedera } from './useHedera';
 
@@ -96,6 +98,10 @@ export function useTokenCreate(): UseTokenCreateResult {
         if (params.maxSupply) {
           tx.setMaxSupply(params.maxSupply);
         }
+
+        // Client.forMainnet/Testnet has no operator, so it can't auto-generate
+        // a transactionId. Set it manually from the connected account.
+        tx.setTransactionId(TransactionId.generate(AccountId.fromString(accountId)));
 
         const frozenTx = tx.freezeWith(client);
         const response = await frozenTx.executeWithSigner(signer);
