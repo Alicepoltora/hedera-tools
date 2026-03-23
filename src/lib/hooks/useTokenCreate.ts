@@ -6,6 +6,7 @@ import {
   TransactionId,
   AccountId,
   Client,
+  PublicKey,
 } from '@hiero-ledger/sdk';
 import { useHedera } from './useHedera';
 
@@ -31,6 +32,34 @@ export interface UseTokenCreateResult {
 }
 
 const DEMO_DELAY = 1400;
+
+const MIRROR_NODES: Record<string, string> = {
+  mainnet: 'https://mainnet-public.mirrornode.hedera.com',
+  testnet: 'https://testnet.mirrornode.hedera.com',
+  previewnet: 'https://previewnet.mirrornode.hedera.com',
+};
+
+/**
+ * Fetches the account's public key from the Mirror Node.
+ * Used to set the supply key on NFT token creation (Hedera requires a supply
+ * key on NFTs; using the user's own key lets them sign future mints via wallet).
+ */
+async function fetchAccountPublicKey(
+  accountId: string,
+  network: string
+): Promise<PublicKey | null> {
+  try {
+    const base = MIRROR_NODES[network] ?? MIRROR_NODES.testnet;
+    const res = await fetch(`${base}/api/v1/accounts/${accountId}`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    const keyHex: string | undefined = data?.key?.key;
+    if (!keyHex) return null;
+    return PublicKey.fromString(keyHex);
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Hook for creating new HTS tokens — both Fungible and NFT collections.
@@ -75,16 +104,28 @@ export function useTokenCreate(): UseTokenCreateResult {
         if (!signer) throw new Error('Wallet signer not available');
 
         const isNFT = params.type === 'NFT';
+        const net = network ?? 'testnet';
 
-        // DAppSigner.populateTransaction() only sets transactionId — it never
-        // sets nodeAccountIds. freezeWith(client) sets nodeAccountIds but
-        // Client.forX() has no operator so it can't auto-generate a txId.
-        // Solution: set both manually, then call freeze() directly.
+        // For NFTs, Hedera requires a supplyKey — without it the token can never
+        // be minted and creation is rejected at precheck (TOKEN_HAS_NO_SUPPLY_KEY).
+        // We use the user's own public key so executeWithSigner(signer) can sign
+        // future mint transactions too. It does NOT need to sign the create tx.
+        let supplyKey: PublicKey | null = null;
+        if (isNFT) {
+          supplyKey = await fetchAccountPublicKey(accountId, net);
+          if (!supplyKey) {
+            throw new Error(
+              'Could not fetch your account public key to set as NFT supply key. ' +
+              'Please try again.'
+            );
+          }
+        }
+
         // Nodes 0.0.3–0.0.7 are valid consensus nodes on both mainnet & testnet.
         const nodeIds = ['0.0.3', '0.0.4', '0.0.5', '0.0.6', '0.0.7'];
 
-        // No adminKey / supplyKey — any randomly-generated key must also sign
-        // the creation transaction, which WalletConnect cannot provide.
+        // No adminKey — any randomly-generated key must also sign the creation
+        // transaction, which WalletConnect cannot provide.
         const tx = new TokenCreateTransaction()
           .setTokenName(params.name)
           .setTokenSymbol(params.symbol)
@@ -99,6 +140,11 @@ export function useTokenCreate(): UseTokenCreateResult {
           tx.setMaxSupply(params.maxSupply);
         }
 
+        // supplyKey = user's wallet key → wallet signs mints automatically
+        if (supplyKey) {
+          tx.setSupplyKey(supplyKey);
+        }
+
         // Set both txId and nodeAccountIds explicitly so freeze() succeeds
         // without needing a client with an operator.
         tx.setTransactionId(TransactionId.generate(AccountId.fromString(accountId)));
@@ -108,11 +154,10 @@ export function useTokenCreate(): UseTokenCreateResult {
         const response = await frozenTx.executeWithSigner(signer);
 
         // getReceiptWithSigner(signer) is broken in DAppSigner — it tries to
-        // route a TransactionReceiptQuery through WalletConnect which throws:
+        // route TransactionReceiptQuery through WalletConnect which throws:
         //   "(BUG) Query.fromBytes() not implemented for type getByKey"
-        // Use getReceipt(client) instead — receipt queries are free (no
-        // operator or signing needed), a plain Client.forX() is sufficient.
-        const receiptClient = network === 'mainnet' ? Client.forMainnet() : Client.forTestnet();
+        // Receipt queries are unsigned/free — use plain Client.forX() instead.
+        const receiptClient = net === 'mainnet' ? Client.forMainnet() : Client.forTestnet();
         const receipt = await response.getReceipt(receiptClient);
         const id = receipt.tokenId?.toString() ?? null;
 
