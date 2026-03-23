@@ -602,7 +602,7 @@ function HTSSection() {
   // New hooks
   const [createName, setCreateName] = useState('My Token');
   const [createSymbol, setCreateSymbol] = useState('MTK');
-  const { createToken, tokenId: newTokenId, loading: createLoading, error: createError } = useTokenCreate();
+  const { createToken, tokenId: newTokenId, supplyKeyHex, loading: createLoading, error: createError } = useTokenCreate();
   const [burnTokenId, setBurnTokenId] = useState('0.0.1234567');
   const [burnAmount, setBurnAmount] = useState('100');
   const { burnFungible, txId: burnTxId, loading: burnLoading } = useTokenBurn();
@@ -676,9 +676,15 @@ await createToken({ name: 'My NFT', symbol: 'NFT', type: 'NFT' });
               </Btn>
             </div>
             {newTokenId && (
-              <div className="bg-emerald-950/30 border border-emerald-800/30 rounded-xl p-3">
-                <p className="text-xs text-emerald-400 mb-1">✅ Token Created</p>
+              <div className="bg-emerald-950/30 border border-emerald-800/30 rounded-xl p-3 space-y-2">
+                <p className="text-xs text-emerald-400">✅ Token Created</p>
                 <p className="font-mono text-sm text-white">{newTokenId}</p>
+                {supplyKeyHex && supplyKeyHex !== 'demo-supply-key-not-real' && (
+                  <div className="mt-2 pt-2 border-t border-emerald-800/30">
+                    <p className="text-xs text-amber-400 mb-1">⚠️ Supply Key (NFT) — save this to mint later:</p>
+                    <p className="font-mono text-xs text-amber-300 break-all">{supplyKeyHex}</p>
+                  </div>
+                )}
               </div>
             )}
             {createError && (
