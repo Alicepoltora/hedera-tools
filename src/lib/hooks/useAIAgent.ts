@@ -172,7 +172,7 @@ export function useAIAgent(options: UseAIAgentOptions = {}): UseAIAgentResult {
 
   // Hedera action hooks
   const { transfer } = useTransfer();
-  const { createToken } = useTokenCreate();
+  const { createToken, error: createTokenError } = useTokenCreate();
   const { burnFungible } = useTokenBurn();
   const { scheduleTransfer } = useScheduledTransaction();
   const { submitMessage: submitHCS } = useHCS();
@@ -285,7 +285,7 @@ export function useAIAgent(options: UseAIAgentOptions = {}): UseAIAgentResult {
                 maxSupply: params.maxSupply != null ? Number(params.maxSupply) : undefined,
                 memo: params.memo != null ? String(params.memo) : undefined,
               });
-              if (!tokenId) throw new Error('Token creation failed — transaction rejected or timed out.');
+              if (!tokenId) throw new Error(createTokenError ?? 'Token creation failed — transaction rejected or timed out.');
               break;
             case 'burn_tokens':
               txId = await burnFungible(String(params.tokenId), Number(params.amount));
@@ -345,7 +345,7 @@ export function useAIAgent(options: UseAIAgentOptions = {}): UseAIAgentResult {
         setExecuting(false);
       }
     },
-    [messages, demoMode, isConnected, accountId, transfer, createToken, burnFungible, scheduleTransfer, submitHCS, associate, addMessage]
+    [messages, demoMode, isConnected, accountId, transfer, createToken, createTokenError, burnFungible, scheduleTransfer, submitHCS, associate, addMessage]
   );
 
   const cancelAction = useCallback((messageId: string) => {
