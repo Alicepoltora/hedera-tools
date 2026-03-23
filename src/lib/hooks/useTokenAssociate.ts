@@ -1,5 +1,11 @@
 import { useCallback, useState } from 'react';
-import { TokenAssociateTransaction, TokenDissociateTransaction, AccountId } from '@hiero-ledger/sdk';
+import {
+  TokenAssociateTransaction,
+  TokenDissociateTransaction,
+  AccountId,
+  TransactionId,
+} from '@hiero-ledger/sdk';
+import { transactionToBase64String } from '@hashgraph/hedera-wallet-connect';
 import { useHedera } from './useHedera';
 
 export interface UseTokenAssociateResult {
@@ -12,6 +18,7 @@ export interface UseTokenAssociateResult {
 }
 
 const DEMO_DELAY = 1000;
+const NODE_IDS = ['0.0.3', '0.0.4', '0.0.5', '0.0.6', '0.0.7'];
 
 /**
  * Associate or dissociate HTS tokens with the connected account.
@@ -25,7 +32,7 @@ const DEMO_DELAY = 1000;
  * await associate(['0.0.111', '0.0.222']); // associate multiple at once
  */
 export function useTokenAssociate(): UseTokenAssociateResult {
-  const { signer, accountId, isConnected, demoMode } = useHedera();
+  const { signer, connector, accountId, isConnected, demoMode } = useHedera();
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -59,21 +66,33 @@ export function useTokenAssociate(): UseTokenAssociateResult {
 
       try {
         if (!signer) throw new Error('Wallet signer not available');
+        if (!connector) throw new Error('WalletConnect connector not available');
 
         const accId = AccountId.fromString(accountId);
+        const nodeIds = NODE_IDS.map((id) => AccountId.fromString(id));
+        const generatedTxId = TransactionId.generate(accId);
 
         const tx =
           type === 'associate'
             ? new TokenAssociateTransaction()
                 .setAccountId(accId)
                 .setTokenIds(ids)
+                .setTransactionId(generatedTxId)
+                .setNodeAccountIds(nodeIds)
             : new TokenDissociateTransaction()
                 .setAccountId(accId)
-                .setTokenIds(ids);
+                .setTokenIds(ids)
+                .setTransactionId(generatedTxId)
+                .setNodeAccountIds(nodeIds);
 
-        const frozenTx = await tx.freezeWithSigner(signer);
-        const response = await frozenTx.executeWithSigner(signer);
-        const id = response.transactionId.toString();
+        const frozenTx = tx.freeze();
+        const id = frozenTx.transactionId!.toString();
+
+        const fullySigned = await signer.signTransaction(frozenTx);
+        await connector.executeTransaction({
+          signedTransaction: [transactionToBase64String(fullySigned)],
+        });
+
         setTxId(id);
         return id;
       } catch (err) {
@@ -84,7 +103,7 @@ export function useTokenAssociate(): UseTokenAssociateResult {
         setLoading(false);
       }
     },
-    [signer, accountId, isConnected, demoMode]
+    [signer, connector, accountId, isConnected, demoMode]
   );
 
   const associate = useCallback(
