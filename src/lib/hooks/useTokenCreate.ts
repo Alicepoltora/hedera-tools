@@ -5,6 +5,7 @@ import {
   TokenSupplyType,
   TransactionId,
   AccountId,
+  Client,
 } from '@hiero-ledger/sdk';
 import { useHedera } from './useHedera';
 
@@ -39,7 +40,7 @@ const DEMO_DELAY = 1400;
  * await createToken({ name: 'My Token', symbol: 'MTK', type: 'FUNGIBLE', initialSupply: 1000 });
  */
 export function useTokenCreate(): UseTokenCreateResult {
-  const { signer, accountId, isConnected, demoMode } = useHedera();
+  const { signer, accountId, isConnected, demoMode, network } = useHedera();
   const [tokenId, setTokenId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -105,7 +106,14 @@ export function useTokenCreate(): UseTokenCreateResult {
 
         const frozenTx = tx.freeze();
         const response = await frozenTx.executeWithSigner(signer);
-        const receipt = await response.getReceiptWithSigner(signer);
+
+        // getReceiptWithSigner(signer) is broken in DAppSigner — it tries to
+        // route a TransactionReceiptQuery through WalletConnect which throws:
+        //   "(BUG) Query.fromBytes() not implemented for type getByKey"
+        // Use getReceipt(client) instead — receipt queries are free (no
+        // operator or signing needed), a plain Client.forX() is sufficient.
+        const receiptClient = network === 'mainnet' ? Client.forMainnet() : Client.forTestnet();
+        const receipt = await response.getReceipt(receiptClient);
         const id = receipt.tokenId?.toString() ?? null;
 
         setTokenId(id);
@@ -118,7 +126,7 @@ export function useTokenCreate(): UseTokenCreateResult {
         setLoading(false);
       }
     },
-    [signer, accountId, isConnected, demoMode]
+    [signer, accountId, isConnected, demoMode, network]
   );
 
   return { tokenId, loading, error, createToken, reset };
