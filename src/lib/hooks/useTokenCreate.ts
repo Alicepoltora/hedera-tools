@@ -7,6 +7,7 @@ import {
   AccountId,
   PrivateKey,
 } from '@hiero-ledger/sdk';
+import { transactionToBase64String } from '@hashgraph/hedera-wallet-connect';
 import { useHedera } from './useHedera';
 
 export type TokenCreateType = 'FUNGIBLE' | 'NFT';
@@ -95,7 +96,7 @@ async function waitForMirrorReceipt(
  * await createToken({ name: 'My Token', symbol: 'MTK', type: 'FUNGIBLE', initialSupply: 1000 });
  */
 export function useTokenCreate(): UseTokenCreateResult {
-  const { signer, accountId, isConnected, demoMode, network } = useHedera();
+  const { signer, connector, accountId, isConnected, demoMode, network } = useHedera();
   const [tokenId, setTokenId] = useState<string | null>(null);
   const [supplyKeyHex, setSupplyKeyHex] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -179,21 +180,29 @@ export function useTokenCreate(): UseTokenCreateResult {
 
         const frozenTx = tx.freeze();
 
-        // Sign with the supply key locally (tx.sign returns Promise<Transaction>).
-        // Hedera requires the supply key's signature on TokenCreateTransaction
-        // when the supply key is set. The wallet then adds the treasury signature.
-        const signedTx = supplyPrivateKey
+        // Capture txId now — we set it manually so we know it upfront.
+        const txIdStr = frozenTx.transactionId!.toString();
+
+        // Step 1: sign locally with the supply key (if NFT).
+        const withSupplyKey = supplyPrivateKey
           ? await frozenTx.sign(supplyPrivateKey)
           : frozenTx;
 
-        // Wallet signs as treasury account, then submits to the network.
-        const response = await signedTx.executeWithSigner(signer);
+        // Step 2: wallet signs as treasury via hedera_signTransaction.
+        // This sends only the body bytes to the wallet for signing and merges
+        // the returned signature into the existing signed transaction —
+        // crucially it does NOT let the wallet re-build or strip any fields.
+        const fullySigned = await signer.signTransaction(withSupplyKey);
 
-        // getReceiptWithSigner is broken in DAppSigner (WalletConnect throws
-        // "(BUG) Query.fromBytes() not implemented for type getByKey").
-        // getReceipt(client) needs gRPC unavailable in browsers.
-        // → Poll Mirror Node REST API instead.
-        const txIdStr = response.transactionId.toString();
+        // Step 3: submit the pre-signed transaction via hedera_executeTransaction.
+        // The wallet forwards the bytes as-is (no re-signing), so the supply key
+        // field is preserved in what the Hedera node receives.
+        if (!connector) throw new Error('WalletConnect connector not available');
+        await connector.executeTransaction({
+          signedTransaction: [transactionToBase64String(fullySigned)],
+        });
+
+        // Poll Mirror Node for confirmation (gRPC not available in browsers).
         const id = await waitForMirrorReceipt(txIdStr, net);
 
         setTokenId(id);
@@ -209,7 +218,7 @@ export function useTokenCreate(): UseTokenCreateResult {
         setLoading(false);
       }
     },
-    [signer, accountId, isConnected, demoMode, network]
+    [signer, connector, accountId, isConnected, demoMode, network]
   );
 
   return { tokenId, supplyKeyHex, loading, error, createToken, reset };
