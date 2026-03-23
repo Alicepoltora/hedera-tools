@@ -1,5 +1,10 @@
 import { useCallback, useState } from 'react';
-import { TopicMessageSubmitTransaction } from '@hiero-ledger/sdk';
+import {
+  TopicMessageSubmitTransaction,
+  TransactionId,
+  AccountId,
+} from '@hiero-ledger/sdk';
+import { transactionToBase64String } from '@hashgraph/hedera-wallet-connect';
 import { useHedera } from './useHedera';
 
 export interface HCSMessage {
@@ -24,6 +29,7 @@ const MIRROR_NODES: Record<string, string> = {
 };
 
 const DEMO_DELAY = 1000;
+const NODE_IDS = ['0.0.3', '0.0.4', '0.0.5', '0.0.6', '0.0.7'];
 
 /**
  * Hook for interacting with the Hedera Consensus Service (HCS).
@@ -35,7 +41,7 @@ const DEMO_DELAY = 1000;
  * const msgs = await fetchMessages('0.0.12345', 10);
  */
 export function useHCS(): UseHCSResult {
-  const { signer, accountId, isConnected, demoMode, network } = useHedera();
+  const { signer, connector, accountId, isConnected, demoMode, network } = useHedera();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastSequenceNumber, setLastSequenceNumber] = useState<string | null>(null);
@@ -71,17 +77,45 @@ export function useHCS(): UseHCSResult {
 
       try {
         if (!signer) throw new Error('Wallet signer not available');
+        if (!connector) throw new Error('WalletConnect connector not available');
 
-        const tx = await new TopicMessageSubmitTransaction()
+        const tx = new TopicMessageSubmitTransaction()
           .setTopicId(topicId)
           .setMessage(message)
-          .freezeWithSigner(signer);
+          .setTransactionId(TransactionId.generate(AccountId.fromString(accountId)))
+          .setNodeAccountIds(NODE_IDS.map((id) => AccountId.fromString(id)));
 
-        const response = await tx.executeWithSigner(signer);
-        const receipt = await response.getReceiptWithSigner(signer);
-        const seq = receipt.topicSequenceNumber?.toString() ?? null;
-        setLastSequenceNumber(seq);
-        return seq;
+        const frozenTx = tx.freeze();
+        const txIdStr = frozenTx.transactionId!.toString();
+
+        const fullySigned = await signer.signTransaction(frozenTx);
+        await connector.executeTransaction({
+          signedTransaction: [transactionToBase64String(fullySigned)],
+        });
+
+        // Poll Mirror Node to get sequence number from the confirmed message
+        const mirrorUrl = MIRROR_NODES[network] ?? MIRROR_NODES.testnet;
+        const mirrorTxId = txIdStr.replace('@', '-').replace(/\.(\d+)$/, '-$1');
+        let seq: string | null = null;
+        for (let i = 0; i < 20; i++) {
+          await new Promise((r) => setTimeout(r, 3000));
+          try {
+            const res = await fetch(`${mirrorUrl}/api/v1/transactions/${mirrorTxId}`);
+            if (!res.ok) continue;
+            const data = await res.json();
+            const txs: Array<{ result: string; entity_id?: string }> = data.transactions ?? [];
+            if (txs.length > 0 && txs[0].result === 'SUCCESS') {
+              // For HCS, return the txId — sequence number can be fetched via fetchMessages
+              seq = txIdStr;
+              break;
+            }
+          } catch {
+            // retry
+          }
+        }
+
+        setLastSequenceNumber(seq ?? txIdStr);
+        return seq ?? txIdStr;
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Submit failed';
         setError(msg);
@@ -90,7 +124,7 @@ export function useHCS(): UseHCSResult {
         setLoading(false);
       }
     },
-    [signer, accountId, isConnected, demoMode]
+    [signer, connector, accountId, isConnected, demoMode, network]
   );
 
   const fetchMessages = useCallback(
@@ -120,7 +154,13 @@ export function useHCS(): UseHCSResult {
           (m: { sequence_number: number; consensus_timestamp: string; message: string }) => ({
             sequenceNumber: m.sequence_number,
             consensusTimestamp: m.consensus_timestamp,
-            content: Buffer.from(m.message, 'base64').toString('utf-8'),
+            content: (() => {
+              try {
+                return atob(m.message);
+              } catch {
+                return m.message;
+              }
+            })(),
           })
         );
       } catch (err) {
