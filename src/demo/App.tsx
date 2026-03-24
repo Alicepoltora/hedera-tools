@@ -1162,11 +1162,32 @@ await unstake();`}
 // SECTION: Smart Contracts
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ── Deployed ecosystem contracts (testnet) ───────────────────────────────────
+const DEPLOYED_CONTRACTS = [
+  { name: 'HookRegistry',     id: '0.0.8354743', desc: 'On-chain registry of published hooks & libraries' },
+  { name: 'DeveloperRewards', id: '0.0.8354746', desc: 'HBAR reward pool — AI Agent distributes funds' },
+  { name: 'QualityOracle',    id: '0.0.8354749', desc: 'Stores AI quality scores (0–100) per hook' },
+  { name: 'HookMarketplace',  id: '0.0.8354751', desc: 'Buy/sell access licences for premium hooks' },
+  { name: 'ReputationSystem', id: '0.0.8354754', desc: 'Developer reputation points & profiles' },
+  { name: 'GovernanceVoting', id: '0.0.8354757', desc: 'Community proposals & on-chain voting' },
+  { name: 'EventLogger',      id: '0.0.8354759', desc: 'Immutable on-chain event log for dApp interactions' },
+  { name: 'AccessControl',    id: '0.0.8354736', desc: 'Role-based permissions (ADMIN, ORACLE, MODERATOR)' },
+  { name: 'FeeCollector',     id: '0.0.8354761', desc: 'Collects & distributes protocol fees' },
+  { name: 'AIAgentRegistry',  id: '0.0.8354763', desc: 'Discoverable tool definitions for the AI Agent' },
+] as const;
+
 function ContractsSection() {
   const { isConnected } = useHedera();
+  const [copied, setCopied] = useState<string | null>(null);
+
+  const copyId = (id: string) => {
+    void navigator.clipboard.writeText(id);
+    setCopied(id);
+    setTimeout(() => setCopied(null), 1500);
+  };
 
   // Write
-  const [writeContractId, setWriteContractId] = useState('0.0.1234567');
+  const [writeContractId, setWriteContractId] = useState('0.0.8354743');
   const [writeFnName, setWriteFnName] = useState('transfer');
   const [writeGas, setWriteGas] = useState('100000');
   const { write, loading: wLoading, txId: wTxId, error: wError } = useContractWrite();
@@ -1178,6 +1199,70 @@ function ContractsSection() {
   return (
     <div className="space-y-6">
       <h2 className="text-xl font-semibold text-white">Smart Contracts</h2>
+
+      {/* ── Deployed Ecosystem Contracts ── */}
+      <div className="rounded-xl border border-violet-500/30 bg-slate-900/60 overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-3 border-b border-slate-800 bg-violet-900/20">
+          <div className="flex items-center gap-2">
+            <span className="text-lg">🚀</span>
+            <span className="font-semibold text-white text-sm">Deployed Ecosystem Contracts</span>
+            <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-mono">Testnet</span>
+          </div>
+          <a
+            href="https://hashscan.io/testnet/account/0.0.8346126"
+            target="_blank"
+            rel="noreferrer"
+            className="text-xs text-slate-400 hover:text-violet-400 transition-colors"
+          >
+            View deployer ↗
+          </a>
+        </div>
+
+        {/* Contract rows */}
+        <div className="divide-y divide-slate-800/60">
+          {DEPLOYED_CONTRACTS.map(({ name, id, desc }) => (
+            <div key={id} className="flex items-center gap-3 px-5 py-3 hover:bg-slate-800/30 transition-colors group">
+              {/* Name + desc */}
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-white">{name}</p>
+                <p className="text-xs text-slate-500 truncate">{desc}</p>
+              </div>
+              {/* Contract ID */}
+              <button
+                onClick={() => copyId(id)}
+                className="font-mono text-xs text-violet-400 hover:text-violet-300 transition-colors shrink-0"
+                title="Copy ID"
+              >
+                {copied === id ? '✅ copied' : id}
+              </button>
+              {/* HashScan link */}
+              <a
+                href={`https://hashscan.io/testnet/contract/${id}`}
+                target="_blank"
+                rel="noreferrer"
+                className="text-slate-500 hover:text-emerald-400 transition-colors shrink-0 text-xs"
+                title="View on HashScan"
+              >
+                HashScan ↗
+              </a>
+            </div>
+          ))}
+        </div>
+
+        {/* Footer */}
+        <div className="px-5 py-2.5 bg-slate-900/40 border-t border-slate-800 flex items-center justify-between">
+          <span className="text-xs text-slate-600">10 contracts · deployed by 0.0.8346126</span>
+          <a
+            href="https://github.com/Alicepoltora/hedera-tools/tree/main/contracts"
+            target="_blank"
+            rel="noreferrer"
+            className="text-xs text-slate-500 hover:text-violet-400 transition-colors"
+          >
+            Source code ↗
+          </a>
+        </div>
+      </div>
 
       {/* ContractCallButton */}
       <DemoCard
