@@ -52,6 +52,9 @@ export type { UseTokenCreateResult, TokenCreateParams, TokenCreateType } from '.
 export { useTokenBurn } from './hooks/useTokenBurn';
 export type { UseTokenBurnResult } from './hooks/useTokenBurn';
 
+export { useTokenMint } from './hooks/useTokenMint';
+export type { UseTokenMintResult, TokenMintParams } from './hooks/useTokenMint';
+
 export { useTokenInfo } from './hooks/useTokenInfo';
 export type { TokenInfo as TokenInfoFull, UseTokenInfoResult } from './hooks/useTokenInfo';
 
