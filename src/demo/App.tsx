@@ -26,6 +26,7 @@ import {
   useContractRead,
   useNFT,
   useTokenCreate,
+  useTokenMint,
   useTokenBurn,
   useTokenInfo,
   useAccountTransactions,
@@ -828,131 +829,149 @@ const { info } = useTokenInfo('0.0.1234567');
 // SECTION: NFTs
 // ─────────────────────────────────────────────────────────────────────────────
 
-// ── NFT contract deployed on Hedera Testnet ───────────────────────────────────
-const NFT_CONTRACT_ID = '0.0.8354924';
-
 function NFTSection() {
   const [tokenId, setTokenId] = useState('0.0.1234567');
   const [serialNum, setSerialNum] = useState('1');
   const { nft, collection, accountNFTs, loading, error, fetchNFT, fetchCollection, fetchAccountNFTs } = useNFT();
   const { accountId, isConnected } = useHedera();
 
-  // ── Mint state ──────────────────────────────────────────────────────────────
-  const [mintTo, setMintTo] = useState('');
-  const [mintUri, setMintUri] = useState('ipfs://QmeSjSinHpPnmXmspMjwiXyN6zS4E9zccariGR3jxcaWtq/1');
-  const { write: mintWrite, loading: mintLoading, txId: mintTxId, error: mintError } = useContractWrite();
+  // ── Step 1: Create HTS NFT collection ──────────────────────────────────────
+  const [collName, setCollName]   = useState('My Hedera NFT');
+  const [collSymbol, setCollSymbol] = useState('HNFT');
+  const { createToken, tokenId: createdTokenId, supplyKeyHex, loading: createLoading, error: createError } = useTokenCreate();
 
-  // Convert Hedera account 0.0.XXXXX → EVM address (long-zero format)
-  const hederaToEvm = (id: string) => {
-    const num = parseInt(id.split('.')[2] ?? '0', 10);
-    return '0x' + num.toString(16).padStart(40, '0');
+  // ── Step 2: Mint NFT from collection ───────────────────────────────────────
+  const [mintTokenId, setMintTokenId]     = useState('');
+  const [mintSupplyKey, setMintSupplyKey] = useState('');
+  const [mintMetadata, setMintMetadata]   = useState('ipfs://QmeSjSinHpPnmXmspMjwiXyN6zS4E9zccariGR3jxcaWtq/1');
+  const { mintNFT, serials, txId: mintTxId, loading: mintLoading, error: mintError } = useTokenMint();
+
+  // Auto-fill Step 2 when collection is created
+  const handleCreate = async () => {
+    const id = await createToken({ name: collName, symbol: collSymbol, type: 'NFT' });
+    if (id) { setMintTokenId(id); }
   };
-
   const handleMint = async () => {
-    if (!mintTo || !mintUri) return;
-    const { Interface: EthIface } = await import('ethers');
-    const iface = new EthIface(['function mint(address to, string uri) returns (uint256)']);
-    const calldata = iface.encodeFunctionData('mint', [mintTo, mintUri]);
-    const encodedParams = new Uint8Array(Buffer.from(calldata.slice(2), 'hex'));
-    await mintWrite({ contractId: NFT_CONTRACT_ID, functionName: 'mint', encodedParams, gas: 500_000 });
+    await mintNFT({ tokenId: mintTokenId, supplyKeyHex: mintSupplyKey, metadata: [mintMetadata] });
   };
 
   return (
     <div className="space-y-6">
       <h2 className="text-xl font-semibold text-white">NFTs</h2>
 
-      {/* ── Live NFT Minting ── */}
+      {/* ── HTS NFT — Create + Mint ── */}
       <DemoCard
-        title="🎨 Mint NFT — Live on Hedera Testnet"
-        badge="contract"
-        snippet={`import { useContractWrite } from 'hedera-ui-kit';
-import { Interface } from 'ethers';
+        title="🖼️ HTS NFT — Create Collection & Mint"
+        badge="hook"
+        snippet={`import { useTokenCreate, useTokenMint } from 'hedera-ui-kit';
 
-const NFT_CONTRACT = '${NFT_CONTRACT_ID}'; // HederaNFT (ERC-721) on Testnet
+// Step 1 — create an NFT collection on HTS
+const { createToken, tokenId, supplyKeyHex } = useTokenCreate();
+await createToken({ name: 'My NFT', symbol: 'MNFT', type: 'NFT' });
+// tokenId → '0.0.XXXXX'
+// supplyKeyHex → save this! needed to mint
 
-const { write, loading, txId } = useContractWrite();
-
-const mintNFT = async (to: string, uri: string) => {
-  const iface = new Interface(['function mint(address, string)']);
-  const calldata = iface.encodeFunctionData('mint', [to, uri]);
-  const encoded = new Uint8Array(Buffer.from(calldata.slice(2), 'hex'));
-  await write({
-    contractId: NFT_CONTRACT,
-    functionName: 'mint',
-    encodedParams: encoded,
-    gas: 500_000,
-  });
-};`}
+// Step 2 — mint a serial using the supply key
+const { mintNFT, serials } = useTokenMint();
+await mintNFT({
+  tokenId,
+  supplyKeyHex,          // from step 1
+  metadata: ['ipfs://QmYourHash'],
+});
+// serials → [1]  ← first serial minted on Hedera Token Service`}
       >
-        {/* Contract info bar */}
-        <div className="flex items-center justify-between rounded-lg bg-violet-900/20 border border-violet-600/20 px-4 py-2.5 mb-4">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs text-slate-500">ERC-721 Contract</span>
-            <a
-              href={`https://hashscan.io/testnet/contract/${NFT_CONTRACT_ID}`}
-              target="_blank"
-              rel="noreferrer"
-              className="font-mono text-xs text-violet-400 hover:text-violet-300 transition-colors"
-            >
-              {NFT_CONTRACT_ID}
-            </a>
-            <span className="text-xs px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400">Testnet</span>
-          </div>
-          <a
-            href="https://github.com/Alicepoltora/hedera-tools/blob/main/contracts/HederaNFT.sol"
-            target="_blank"
-            rel="noreferrer"
-            className="text-xs text-slate-500 hover:text-violet-400 transition-colors shrink-0"
-          >
-            Source ↗
-          </a>
+        {/* How it works */}
+        <div className="flex items-center gap-2 mb-4 p-3 rounded-lg bg-teal-900/20 border border-teal-700/30 text-xs text-teal-300">
+          <span className="shrink-0">ℹ️</span>
+          <span>Native Hedera Token Service (HTS) — no EVM, no Solidity. NFT collections live as first-class Hedera entities with serial numbers.</span>
         </div>
 
-        <div className="space-y-3">
-          <div>
-            <Input
-              label="Recipient (EVM address)"
-              placeholder="0x0000000000000000000000000000000000000000"
-              value={mintTo}
-              onChange={(e) => setMintTo(e.target.value)}
-            />
-            {accountId && !mintTo && (
-              <button
-                onClick={() => setMintTo(hederaToEvm(accountId))}
-                className="mt-1.5 text-xs text-violet-400 hover:text-violet-300 transition-colors"
-              >
-                ← use my address ({hederaToEvm(accountId).slice(0, 12)}…)
-              </button>
-            )}
+        {/* Step 1 */}
+        <div className="space-y-3 pb-4 border-b border-slate-800">
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Step 1 — Create NFT Collection</p>
+          <div className="grid grid-cols-2 gap-3">
+            <Input label="Collection Name" value={collName} onChange={(e) => setCollName(e.target.value)} placeholder="My Hedera NFT" />
+            <Input label="Symbol" value={collSymbol} onChange={(e) => setCollSymbol(e.target.value)} placeholder="HNFT" />
           </div>
+          {createError && <p className="text-red-400 text-xs">⚠️ {createError}</p>}
+          <Btn disabled={createLoading || !collName || !collSymbol} onClick={() => void handleCreate()} className="w-full">
+            {createLoading ? 'Creating…' : '🏗️ Create NFT Collection →'}
+          </Btn>
+          {createdTokenId && (
+            <div className="rounded-lg bg-emerald-900/20 border border-emerald-600/30 px-4 py-3 space-y-1.5">
+              <p className="text-xs text-emerald-400 font-semibold">✅ Collection created</p>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-500">Token ID</span>
+                <a href={`https://hashscan.io/testnet/token/${createdTokenId}`} target="_blank" rel="noreferrer"
+                  className="font-mono text-xs text-violet-400 hover:text-violet-300 transition-colors">
+                  {createdTokenId} ↗
+                </a>
+              </div>
+              {supplyKeyHex && supplyKeyHex !== 'demo-supply-key-not-real' && (
+                <div className="rounded bg-amber-900/30 border border-amber-700/40 px-3 py-2 mt-1">
+                  <p className="text-xs text-amber-400 font-semibold mb-1">⚠️ Save your Supply Key — needed to mint!</p>
+                  <p className="font-mono text-xs text-amber-300/70 break-all">{supplyKeyHex.slice(0, 24)}…</p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Step 2 */}
+        <div className="space-y-3 pt-2">
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Step 2 — Mint NFT Serial</p>
           <Input
-            label="Token URI (IPFS / HTTPS metadata)"
-            placeholder="ipfs://Qm... or https://..."
-            value={mintUri}
-            onChange={(e) => setMintUri(e.target.value)}
+            label="Token ID (collection)"
+            value={mintTokenId}
+            onChange={(e) => setMintTokenId(e.target.value)}
+            placeholder="0.0.XXXXX"
+          />
+          <Input
+            label="Supply Key (hex)"
+            value={mintSupplyKey}
+            onChange={(e) => setMintSupplyKey(e.target.value)}
+            placeholder="paste supply key from step 1…"
+            type="password"
+          />
+          {createdTokenId && supplyKeyHex && !mintSupplyKey && (
+            <button
+              onClick={() => setMintSupplyKey(supplyKeyHex)}
+              className="text-xs text-violet-400 hover:text-violet-300 transition-colors"
+            >
+              ← autofill supply key from step 1
+            </button>
+          )}
+          <Input
+            label="Metadata (IPFS URI or text)"
+            value={mintMetadata}
+            onChange={(e) => setMintMetadata(e.target.value)}
+            placeholder="ipfs://Qm…"
           />
           {mintError && <p className="text-red-400 text-xs">⚠️ {mintError}</p>}
           <Btn
-            disabled={mintLoading || !mintTo || !mintUri}
+            disabled={mintLoading || !mintTokenId || !mintSupplyKey || !mintMetadata}
             onClick={() => void handleMint()}
             className="w-full"
           >
-            {mintLoading ? 'Minting…' : '🖼️ Mint NFT →'}
+            {mintLoading ? 'Minting…' : '🪙 Mint NFT on HTS →'}
           </Btn>
           {!isConnected && (
-            <p className="text-xs text-slate-600 text-center">Connect wallet to mint on-chain · demo mode simulates the transaction</p>
+            <p className="text-xs text-slate-600 text-center">Connect wallet to mint on-chain · demo mode simulates</p>
           )}
           {mintTxId && (
-            <div className="rounded-lg bg-emerald-900/20 border border-emerald-600/30 px-4 py-3 space-y-1">
-              <p className="text-xs text-emerald-400 font-semibold">✅ Minted successfully</p>
-              <p className="font-mono text-xs text-slate-400 break-all">{mintTxId}</p>
+            <div className="rounded-lg bg-emerald-900/20 border border-emerald-600/30 px-4 py-3 space-y-1.5">
+              <p className="text-xs text-emerald-400 font-semibold">✅ NFT minted on Hedera Token Service</p>
+              {serials.length > 0 && (
+                <p className="text-sm font-mono text-white">Serial #{serials.join(', #')}</p>
+              )}
+              <p className="font-mono text-xs text-slate-500 break-all">{mintTxId}</p>
               <a
-                href={`https://hashscan.io/testnet/transaction/${mintTxId.replace('@', '-').replace('.', '-')}`}
+                href={`https://hashscan.io/testnet/token/${mintTokenId}`}
                 target="_blank"
                 rel="noreferrer"
                 className="text-xs text-violet-400 hover:text-violet-300 transition-colors"
               >
-                View on HashScan ↗
+                View collection on HashScan ↗
               </a>
             </div>
           )}
