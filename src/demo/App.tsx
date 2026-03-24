@@ -828,15 +828,136 @@ const { info } = useTokenInfo('0.0.1234567');
 // SECTION: NFTs
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ── NFT contract deployed on Hedera Testnet ───────────────────────────────────
+const NFT_CONTRACT_ID = '0.0.8354924';
+
 function NFTSection() {
   const [tokenId, setTokenId] = useState('0.0.1234567');
   const [serialNum, setSerialNum] = useState('1');
   const { nft, collection, accountNFTs, loading, error, fetchNFT, fetchCollection, fetchAccountNFTs } = useNFT();
-  const { accountId } = useHedera();
+  const { accountId, isConnected } = useHedera();
+
+  // ── Mint state ──────────────────────────────────────────────────────────────
+  const [mintTo, setMintTo] = useState('');
+  const [mintUri, setMintUri] = useState('ipfs://QmeSjSinHpPnmXmspMjwiXyN6zS4E9zccariGR3jxcaWtq/1');
+  const { write: mintWrite, loading: mintLoading, txId: mintTxId, error: mintError } = useContractWrite();
+
+  // Convert Hedera account 0.0.XXXXX → EVM address (long-zero format)
+  const hederaToEvm = (id: string) => {
+    const num = parseInt(id.split('.')[2] ?? '0', 10);
+    return '0x' + num.toString(16).padStart(40, '0');
+  };
+
+  const handleMint = async () => {
+    if (!mintTo || !mintUri) return;
+    const { Interface: EthIface } = await import('ethers');
+    const iface = new EthIface(['function mint(address to, string uri) returns (uint256)']);
+    const calldata = iface.encodeFunctionData('mint', [mintTo, mintUri]);
+    const encodedParams = new Uint8Array(Buffer.from(calldata.slice(2), 'hex'));
+    await mintWrite({ contractId: NFT_CONTRACT_ID, functionName: 'mint', encodedParams, gas: 500_000 });
+  };
 
   return (
     <div className="space-y-6">
       <h2 className="text-xl font-semibold text-white">NFTs</h2>
+
+      {/* ── Live NFT Minting ── */}
+      <DemoCard
+        title="🎨 Mint NFT — Live on Hedera Testnet"
+        badge="contract"
+        snippet={`import { useContractWrite } from 'hedera-ui-kit';
+import { Interface } from 'ethers';
+
+const NFT_CONTRACT = '${NFT_CONTRACT_ID}'; // HederaNFT (ERC-721) on Testnet
+
+const { write, loading, txId } = useContractWrite();
+
+const mintNFT = async (to: string, uri: string) => {
+  const iface = new Interface(['function mint(address, string)']);
+  const calldata = iface.encodeFunctionData('mint', [to, uri]);
+  const encoded = new Uint8Array(Buffer.from(calldata.slice(2), 'hex'));
+  await write({
+    contractId: NFT_CONTRACT,
+    functionName: 'mint',
+    encodedParams: encoded,
+    gas: 500_000,
+  });
+};`}
+      >
+        {/* Contract info bar */}
+        <div className="flex items-center justify-between rounded-lg bg-violet-900/20 border border-violet-600/20 px-4 py-2.5 mb-4">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs text-slate-500">ERC-721 Contract</span>
+            <a
+              href={`https://hashscan.io/testnet/contract/${NFT_CONTRACT_ID}`}
+              target="_blank"
+              rel="noreferrer"
+              className="font-mono text-xs text-violet-400 hover:text-violet-300 transition-colors"
+            >
+              {NFT_CONTRACT_ID}
+            </a>
+            <span className="text-xs px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400">Testnet</span>
+          </div>
+          <a
+            href="https://github.com/Alicepoltora/hedera-tools/blob/main/contracts/HederaNFT.sol"
+            target="_blank"
+            rel="noreferrer"
+            className="text-xs text-slate-500 hover:text-violet-400 transition-colors shrink-0"
+          >
+            Source ↗
+          </a>
+        </div>
+
+        <div className="space-y-3">
+          <div>
+            <Input
+              label="Recipient (EVM address)"
+              placeholder="0x0000000000000000000000000000000000000000"
+              value={mintTo}
+              onChange={(e) => setMintTo(e.target.value)}
+            />
+            {accountId && !mintTo && (
+              <button
+                onClick={() => setMintTo(hederaToEvm(accountId))}
+                className="mt-1.5 text-xs text-violet-400 hover:text-violet-300 transition-colors"
+              >
+                ← use my address ({hederaToEvm(accountId).slice(0, 12)}…)
+              </button>
+            )}
+          </div>
+          <Input
+            label="Token URI (IPFS / HTTPS metadata)"
+            placeholder="ipfs://Qm... or https://..."
+            value={mintUri}
+            onChange={(e) => setMintUri(e.target.value)}
+          />
+          {mintError && <p className="text-red-400 text-xs">⚠️ {mintError}</p>}
+          <Btn
+            disabled={mintLoading || !mintTo || !mintUri}
+            onClick={() => void handleMint()}
+            className="w-full"
+          >
+            {mintLoading ? 'Minting…' : '🖼️ Mint NFT →'}
+          </Btn>
+          {!isConnected && (
+            <p className="text-xs text-slate-600 text-center">Connect wallet to mint on-chain · demo mode simulates the transaction</p>
+          )}
+          {mintTxId && (
+            <div className="rounded-lg bg-emerald-900/20 border border-emerald-600/30 px-4 py-3 space-y-1">
+              <p className="text-xs text-emerald-400 font-semibold">✅ Minted successfully</p>
+              <p className="font-mono text-xs text-slate-400 break-all">{mintTxId}</p>
+              <a
+                href={`https://hashscan.io/testnet/transaction/${mintTxId.replace('@', '-').replace('.', '-')}`}
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs text-violet-400 hover:text-violet-300 transition-colors"
+              >
+                View on HashScan ↗
+              </a>
+            </div>
+          )}
+        </div>
+      </DemoCard>
 
       <DemoCard
         title="NFTGallery"
