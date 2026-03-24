@@ -22,7 +22,7 @@ const QUICK_ACTIONS = [
   { label: 'Send HBAR', text: 'Send 5 HBAR to 0.0.98' },
   { label: 'Create token', text: 'Create a token called Carbon Credit with symbol CCR and 1000 initial supply' },
   { label: 'Create NFT', text: 'Create an NFT collection called Pixel Cats with a max supply of 100' },
-  { label: 'HCS message', text: 'Submit to topic 0.0.9999999: {"event":"deploy","version":"1.1.0"}' },
+  { label: 'HCS message', text: 'Submit to topic 0.0.8359467: {"event":"deploy","version":"1.1.0"}' },
   { label: 'Help', text: 'What can you do?' },
 ];
 
