@@ -191,12 +191,12 @@ function getDemoResponse(
   // ── HCS message ──
   if (lower.includes('hcs') || lower.includes('topic') || lower.includes('submit') || lower.includes('log')) {
     return {
-      message: 'Submitting message to HCS topic. Please confirm:',
+      message: 'Submitting message to the hedera-ui-kit AI Agent topic on HCS. Please confirm:',
       action: {
         type: 'submit_hcs_message',
-        params: { topicId: '0.0.9999999', message: text },
+        params: { topicId: '0.0.8359467', message: text },
         confirmationRequired: true,
-        description: 'Submit to topic 0.0.9999999',
+        description: 'Submit to topic 0.0.8359467 (hedera-ui-kit AI Agent)',
       },
     };
   }
