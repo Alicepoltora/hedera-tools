@@ -323,10 +323,11 @@ export function useAIAgent(options: UseAIAgentOptions = {}): UseAIAgentResult {
 
         const data = await res.json() as { message: string; action?: AIAction };
         addMessage({ role: 'assistant', content: data.message, action: data.action });
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : 'AI request failed';
-        setError(msg);
-        addMessage({ role: 'assistant', content: `⚠️ ${msg}` });
+      } catch {
+        // API unavailable (e.g. GROQ_API_KEY not set) — fall back to scripted
+        // responses so action cards still appear and wallet operations still work.
+        const demo = getDemoResponse(text, balance, messages);
+        addMessage({ role: 'assistant', content: demo.message, action: demo.action });
       } finally {
         setLoading(false);
       }
